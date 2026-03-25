@@ -7,7 +7,56 @@ import '../../widgets/mini_player.dart';
 import '../../providers/stats_provider.dart';
 import '../../providers/player_provider.dart';
 import '../../models/song.dart';
+import '../../models/playlist.dart';
+import '../../widgets/song_option_widgets.dart';
 import '../player/now_playing_screen.dart';
+import 'library_screen.dart';
+
+// ── Genre color palette ────────────────────────────────────────
+const _genreColors = <String, Color>{
+  'Pop':       Color(0xFF8C67AC),
+  'Indie':     Color(0xFF608B4E),
+  'K-Pop':     Color(0xFFE74C3C),
+  'R&B':       Color(0xFFE8821A),
+  'Hip-Hop':   Color(0xFF2C3E50),
+  'Rock':      Color(0xFFA83232),
+  'Jazz':      Color(0xFF2D6A4F),
+  'Classical': Color(0xFF5C4A1E),
+  'Metal':     Color(0xFF1A1A2E),
+  'Electronic':Color(0xFF0E4D64),
+  'Country':   Color(0xFF856B3B),
+  'Latin':     Color(0xFFC0392B),
+  'Reggae':    Color(0xFF1A5632),
+  'Soul':      Color(0xFF6B3FA0),
+  'Blues':     Color(0xFF1A3A5C),
+  'Punk':      Color(0xFF922B21),
+  'Folk':      Color(0xFF6E5B3A),
+  'Dance':     Color(0xFF1DB954),
+  'Ambient':   Color(0xFF2E4057),
+  'Gospel':    Color(0xFF7D3C98),
+  'OPM':       Color(0xFF1F618D),
+  'Alternative': Color(0xFF5D6D7E),
+  'Acoustic':  Color(0xFF6E2C00),
+  'Lo-fi':     Color(0xFF2E4053),
+  'Rap':       Color(0xFF641E16),
+  'Disco':     Color(0xFFD4AC0D),
+  'Funk':      Color(0xFFE67E22),
+  'Grunge':    Color(0xFF515A5A),
+  'Trap':      Color(0xFF4A235A),
+  'House':     Color(0xFF117A65),
+  'Techno':    Color(0xFF1B2631),
+};
+
+Color _colorForGenre(String genre) {
+  // Exact match first, then case-insensitive
+  if (_genreColors.containsKey(genre)) return _genreColors[genre]!;
+  for (final entry in _genreColors.entries) {
+    if (entry.key.toLowerCase() == genre.toLowerCase()) return entry.value;
+  }
+  // Deterministic fallback color based on genre string hash
+  final hash = genre.hashCode.abs();
+  return HSLColor.fromAHSL(1.0, (hash % 360).toDouble(), 0.5, 0.3).toColor();
+}
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
@@ -19,6 +68,7 @@ class SearchScreen extends ConsumerStatefulWidget {
 class _SearchScreenState extends ConsumerState<SearchScreen> {
   final _controller = TextEditingController();
   String _query = '';
+  String? _selectedGenre;
 
   @override
   void dispose() {
@@ -29,6 +79,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   @override
   Widget build(BuildContext context) {
     final allSongs = ref.watch(allSongsProvider);
+    final playlistsAsync = ref.watch(playlistsStreamProvider);
 
     return Column(
       children: [
@@ -37,156 +88,374 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
             children: [
               const SizedBox(height: 16),
-                  Text('Search',
+              Text('Search',
+                  style: Theme.of(context)
+                      .textTheme
+                      .headlineMedium
+                      ?.copyWith(fontSize: 20)),
+              const SizedBox(height: 12),
+
+              // ── Search bar ────────────────────────
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Row(
+                  children: [
+                    const Icon(Icons.search, color: Colors.black54, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: _controller,
+                        style: const TextStyle(color: Colors.black, fontSize: 13),
+                        decoration: const InputDecoration(
+                          hintText: 'Artists, songs, or albums',
+                          hintStyle: TextStyle(color: Colors.black45, fontSize: 13),
+                          border: InputBorder.none,
+                          isDense: true,
+                          contentPadding: EdgeInsets.symmetric(vertical: 10),
+                        ),
+                        onChanged: (v) => setState(() {
+                          _query = v;
+                          if (v.isNotEmpty) _selectedGenre = null;
+                        }),
+                      ),
+                    ),
+                    if (_query.isNotEmpty)
+                      GestureDetector(
+                        onTap: () {
+                          _controller.clear();
+                          setState(() => _query = '');
+                        },
+                        child: const Icon(Icons.close,
+                            color: Colors.black54, size: 16),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // ── Genre grid (when not searching) ──
+              if (_query.isEmpty) ...[
+                if (_selectedGenre != null) ...[
+                  // ── Genre detail header ─────────────
+                  Row(
+                    children: [
+                      GestureDetector(
+                        onTap: () => setState(() => _selectedGenre = null),
+                        child: const Icon(Icons.arrow_back,
+                            color: BeatSpillTheme.textPrimary, size: 20),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(_selectedGenre!,
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleSmall
+                              ?.copyWith(fontWeight: FontWeight.w700)),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  // Song list for genre
+                  allSongs.when(
+                    data: (songs) {
+                      final genreSongs = songs.where((s) {
+                        final genres = s.genre.split(RegExp(r'[,/]')).map((g) => g.trim().toLowerCase());
+                        return genres.contains(_selectedGenre!.toLowerCase());
+                      }).toList();
+                      if (genreSongs.isEmpty) {
+                        return const Padding(
+                          padding: EdgeInsets.all(32),
+                          child: Text('No songs in this genre',
+                              style: TextStyle(color: BeatSpillTheme.textMuted)),
+                        );
+                      }
+                      return Column(
+                        children: genreSongs.asMap().entries.map((entry) {
+                          final song = entry.value;
+                          return ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: SizedBox(
+                                width: 40,
+                                height: 40,
+                                child: song.artBytes != null && song.artBytes!.isNotEmpty
+                                    ? Image.memory(
+                                        Uint8List.fromList(song.artBytes!),
+                                        key: ValueKey('genre_art_${song.id}'),
+                                        fit: BoxFit.cover,
+                                        gaplessPlayback: true,
+                                      )
+                                    : Container(
+                                        color: _colorForGenre(_selectedGenre!),
+                                        child: const Center(
+                                          child: Icon(Icons.music_note,
+                                              color: Colors.white54, size: 18),
+                                        ),
+                                      ),
+                              ),
+                            ),
+                            title: Text(song.title,
+                                style: const TextStyle(
+                                    color: BeatSpillTheme.textPrimary,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis),
+                            subtitle: Text(song.artist,
+                                style: const TextStyle(
+                                    color: BeatSpillTheme.textSecondary, fontSize: 11)),
+                            onTap: () {
+                              ref
+                                  .read(playerProvider.notifier)
+                                  .playQueue(genreSongs, startIndex: entry.key);
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => NowPlayingScreen(song: song),
+                                ),
+                              );
+                            },
+                          );
+                        }).toList(),
+                      );
+                    },
+                    loading: () => const Center(child: CircularProgressIndicator()),
+                    error: (_, __) => const Text('Error loading songs'),
+                  ),
+                ] else ...[
+                  // ── Dynamic genre cards ───────────────
+                  Text('Browse categories',
                       style: Theme.of(context)
                           .textTheme
-                          .headlineMedium
-                          ?.copyWith(fontSize: 20)),
-                  const SizedBox(height: 12),
+                          .titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 10),
+                  allSongs.when(
+                    data: (songs) {
+                      // Build genre map dynamically from library
+                      final genreMap = <String, List<Song>>{};
+                      for (final song in songs) {
+                        final rawGenre = song.genre.trim();
+                        if (rawGenre.isEmpty || rawGenre == 'Unknown') continue;
+                        
+                        // Support multiple genres separated by comma or slash
+                        final parts = rawGenre.split(RegExp(r'[,/]'))
+                           .map((g) {
+                             final t = g.trim();
+                             return t.isEmpty ? t : t[0].toUpperCase() + t.substring(1).toLowerCase();
+                           })
+                           .where((g) => g.isNotEmpty);
+                        for (final genre in parts) {
+                          genreMap.putIfAbsent(genre, () => []).add(song);
+                        }
+                      }
+                      // Sort by song count (most popular genres first)
+                      final sortedGenres = genreMap.entries.toList()
+                        ..sort((a, b) => b.value.length.compareTo(a.value.length));
 
-                  // ── Search bar ────────────────────────
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.search, color: Colors.black54, size: 18),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: TextField(
-                            controller: _controller,
-                            style: const TextStyle(color: Colors.black, fontSize: 13),
-                            decoration: const InputDecoration(
-                              hintText: 'Artists, songs, or albums',
-                              hintStyle: TextStyle(color: Colors.black45, fontSize: 13),
-                              border: InputBorder.none,
-                              isDense: true,
-                              contentPadding: EdgeInsets.symmetric(vertical: 10),
-                            ),
-                            onChanged: (v) => setState(() => _query = v),
+                      final playlists = playlistsAsync.valueOrNull ?? [];
+                      final totalCards = sortedGenres.length + playlists.length;
+
+                      if (totalCards == 0) {
+                        return const Padding(
+                          padding: EdgeInsets.all(32),
+                          child: Text(
+                            'No genres or playlists found.\nCreate a playlist or edit song metadata.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: BeatSpillTheme.textMuted),
                           ),
+                        );
+                      }
+
+                      return GridView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          mainAxisSpacing: 8,
+                          crossAxisSpacing: 8,
+                          childAspectRatio: 1.7,
                         ),
-                        if (_query.isNotEmpty)
-                          GestureDetector(
-                            onTap: () {
-                              _controller.clear();
-                              setState(() => _query = '');
-                            },
-                            child: const Icon(Icons.close,
-                                color: Colors.black54, size: 16),
-                          ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
+                        itemCount: totalCards,
+                        itemBuilder: (context, index) {
+                          if (index < playlists.length) {
+                            // Render Playlist Card
+                            final playlist = playlists[index];
+                            final artSong = playlist.songs.firstWhere(
+                              (s) => s.artBytes != null && s.artBytes!.isNotEmpty,
+                              orElse: () => Song()..title = playlist.name, // dummy
+                            );
+                            return _GenreCard(
+                              name: playlist.name,
+                              color: _colorForGenre(playlist.name), // random stable color based on name
+                              artSong: artSong.artBytes != null ? artSong : null,
+                              songCount: playlist.songs.length,
+                              onTap: () => showPlaylistDetails(context, ref, playlist),
+                            );
+                          }
 
-                  // ── Genre grid (when not searching) ──
-                  if (_query.isEmpty) ...[
-                    Text('Browse categories',
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleSmall
-                            ?.copyWith(fontWeight: FontWeight.w700)),
-                    const SizedBox(height: 10),
-                    GridView.count(
+                          // Render Genre Card
+                          final genreIndex = index - playlists.length;
+                          final genre = sortedGenres[genreIndex].key;
+                          final genreSongs = sortedGenres[genreIndex].value;
+                          // Find first song with album art for this genre
+                          final artSong = genreSongs.cast<Song?>().firstWhere(
+                            (s) => s!.artBytes != null && s.artBytes!.isNotEmpty,
+                            orElse: () => null,
+                          );
+                          return _GenreCard(
+                            name: genre,
+                            color: _colorForGenre(genre),
+                            artSong: artSong,
+                            songCount: genreSongs.length,
+                            onTap: () => setState(() => _selectedGenre = genre),
+                          );
+                        },
+                      );
+                    },
+                    loading: () => GridView.count(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
                       crossAxisCount: 2,
                       mainAxisSpacing: 8,
                       crossAxisSpacing: 8,
-                      childAspectRatio: 2.2,
-                      children: allSongs.when(
-                        data: (songs) => [
-                          _GenreCard('Pop', const Color(0xFF1DB954), songs.firstWhere((s) => s.genre == 'Pop', orElse: () => songs.first)),
-                          _GenreCard('Indie', const Color(0xFF8E44AD), songs.firstWhere((s) => s.genre == 'Indie', orElse: () => songs.first)),
-                          _GenreCard('K-Pop', const Color(0xFFE74C3C), songs.firstWhere((s) => s.genre == 'K-Pop', orElse: () => songs.first)),
-                          _GenreCard('R&B', const Color(0xFFE8821A), songs.firstWhere((s) => s.genre == 'R&B', orElse: () => songs.first)),
-                          _GenreCard('Hip-Hop', const Color(0xFF2C3E50), songs.firstWhere((s) => s.genre == 'Hip-Hop', orElse: () => songs.first)),
-                          _GenreCard('Rock', const Color(0xFF1A3A5C), songs.firstWhere((s) => s.genre == 'Rock', orElse: () => songs.first)),
-                          _GenreCard('Jazz', const Color(0xFF2D6A4F), songs.firstWhere((s) => s.genre == 'Jazz', orElse: () => songs.first)),
-                          _GenreCard('Classical', const Color(0xFF5C4A1E), songs.firstWhere((s) => s.genre == 'Classical', orElse: () => songs.first)),
-                        ],
-                        loading: () => List.generate(8, (_) => Container(color: BeatSpillTheme.surfaceAlt)),
-                        error: (_, __) => [const Text('Error')],
+                      children: List.generate(
+                        6,
+                        (_) => Container(
+                          decoration: BoxDecoration(
+                            color: BeatSpillTheme.surfaceAlt,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
                       ),
                     ),
-                  ],
+                    error: (_, __) => const Text('Error loading songs'),
+                  ),
+                ],
+              ],
 
-                  // ── Search results ────────────────────
-                  if (_query.isNotEmpty)
-                    allSongs.when(
-                      data: (songs) {
-                        final q = _query.toLowerCase();
-                        final results = songs.where((s) =>
-                            s.title.toLowerCase().contains(q) ||
-                            s.artist.toLowerCase().contains(q) ||
-                            s.album.toLowerCase().contains(q)).toList();
-                        return _SearchResults(
-                          query: _query,
-                          results: results,
-                          onTap: (song, index) {
-                            ref
-                                .read(playerProvider.notifier)
-                                .playQueue(results, startIndex: index);
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => NowPlayingScreen(song: song),
-                              ),
-                            );
-                          },
+              // ── Search results ────────────────────
+              if (_query.isNotEmpty)
+                allSongs.when(
+                  data: (songs) {
+                    final q = _query.toLowerCase();
+                    final results = songs.where((s) =>
+                        s.title.toLowerCase().contains(q) ||
+                        s.artist.toLowerCase().contains(q) ||
+                        s.album.toLowerCase().contains(q) ||
+                        s.genre.toLowerCase().contains(q)).toList();
+                    return _SearchResults(
+                      query: _query,
+                      results: results,
+                      onTap: (song, index) {
+                        ref
+                            .read(playerProvider.notifier)
+                            .playQueue(results, startIndex: index);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => NowPlayingScreen(song: song),
+                          ),
                         );
                       },
-                      loading: () => const Center(
-                          child: CircularProgressIndicator()),
-                      error: (_, __) => const Text('Error loading songs'),
-                    ),
+                    );
+                  },
+                  loading: () => const Center(
+                      child: CircularProgressIndicator()),
+                  error: (_, __) => const Text('Error loading songs'),
+                ),
 
-                  const SizedBox(height: 100), // Space to scroll past miniplayer
-                ],
-              ),
-            ),
-            const MiniPlayer(),
-          ],
-        );
+              const SizedBox(height: 100),
+            ],
+          ),
+        ),
+        const MiniPlayer(),
+      ],
+    );
   }
 }
 
+// ── Genre card (Spotify-style with tilted album art) ──────────
 class _GenreCard extends StatelessWidget {
   final String name;
   final Color color;
-  final Song? song;
-  const _GenreCard(this.name, this.color, [this.song]);
+  final Song? artSong;
+  final int songCount;
+  final VoidCallback onTap;
+
+  const _GenreCard({
+    required this.name,
+    required this.color,
+    this.artSong,
+    required this.songCount,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$name category results coming soon')),
-        );
-      },
-      borderRadius: BorderRadius.circular(6),
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        clipBehavior: Clip.hardEdge,
         decoration: BoxDecoration(
-          color: color.withOpacity(0.8),
-          borderRadius: BorderRadius.circular(6),
-          image: song?.artBytes != null && song!.artBytes!.isNotEmpty
-              ? DecorationImage(
-                  image: MemoryImage(Uint8List.fromList(song!.artBytes!)),
-                  fit: BoxFit.cover,
-                  opacity: 0.35,
-                )
-              : null,
+          color: color,
+          borderRadius: BorderRadius.circular(8),
         ),
-        alignment: Alignment.centerLeft,
-        child: Text(name,
-            style: const TextStyle(
-                color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14)),
+        child: Stack(
+          children: [
+            // Genre label
+            Positioned(
+              left: 12,
+              top: 10,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(name,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14)),
+                  const SizedBox(height: 2),
+                  Text('$songCount songs',
+                      style: TextStyle(
+                          color: Colors.white.withOpacity(0.6),
+                          fontSize: 10)),
+                ],
+              ),
+            ),
+            // Tilted album art (like Spotify reference) — only if art exists
+            if (artSong != null && artSong!.artBytes != null && artSong!.artBytes!.isNotEmpty)
+              Positioned(
+                right: -8,
+                bottom: -8,
+                child: Transform.rotate(
+                  angle: 0.35,
+                  child: Container(
+                    width: 58,
+                    height: 58,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(4),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.4),
+                          blurRadius: 8,
+                          offset: const Offset(-2, 2),
+                        ),
+                      ],
+                      image: DecorationImage(
+                        image: MemoryImage(Uint8List.fromList(artSong!.artBytes!)),
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -236,16 +505,10 @@ class _SearchResults extends StatelessWidget {
                           gaplessPlayback: true,
                         )
                       : Container(
-                          color: const Color(0xFFC0392B),
-                          child: Center(
-                            child: Text(
-                              song.title.isNotEmpty ? song.title[0] : '♪',
-                              style: const TextStyle(
-                                color: Color(0xFFF1C40F),
-                                fontWeight: FontWeight.w900,
-                                fontSize: 14,
-                              ),
-                            ),
+                          color: BeatSpillTheme.surfaceAlt,
+                          child: const Center(
+                            child: Icon(Icons.music_note,
+                                color: Colors.white54, size: 18),
                           ),
                         ),
                 ),

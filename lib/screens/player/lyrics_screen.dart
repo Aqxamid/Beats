@@ -41,10 +41,11 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
             final lines = LrcParser.parse(lyrics);
             if (lines.isEmpty) return _emptyState();
 
-            // Find current active line
+            // Find current active line.
+            final adjustedPosition = position;
             int activeIndex = -1;
             for (int i = 0; i < lines.length; i++) {
-              if (position >= lines[i].timestamp) {
+              if (adjustedPosition >= lines[i].timestamp) {
                 activeIndex = i;
               } else {
                 break;

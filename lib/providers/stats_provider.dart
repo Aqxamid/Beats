@@ -80,6 +80,8 @@ final recentSongsProvider = FutureProvider<List<Song>>((ref) async {
   // Get all songs that have been played, then sort by lastPlayedAt
   final songs = await DbService.instance.songs
       .filter()
+      .isHiddenEqualTo(false)
+      .and()
       .lastPlayedAtIsNotNull()
       .findAll();
   songs.sort((a, b) => (b.lastPlayedAt ?? DateTime(0))
@@ -89,7 +91,7 @@ final recentSongsProvider = FutureProvider<List<Song>>((ref) async {
 
 // ── All songs (for Library/Search) ───────────────────────────
 final allSongsProvider = FutureProvider<List<Song>>((ref) async {
-  return DbService.instance.songs.where().findAll();
+  return DbService.instance.songs.filter().isHiddenEqualTo(false).findAll();
 });
 
 // ── Liked songs ──────────────────────────────────────────────
@@ -97,6 +99,8 @@ final likedSongsProvider = FutureProvider<List<Song>>((ref) async {
   return DbService.instance.songs
       .filter()
       .isLikedEqualTo(true)
+      .and()
+      .isHiddenEqualTo(false)
       .findAll();
 });
 

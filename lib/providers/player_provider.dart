@@ -1,9 +1,14 @@
 // providers/player_provider.dart
-// Riverpod provider wrapping just_audio AudioPlayer.
-// Manages playback state, queue, and logs PlayEvents to Isar.
+// Riverpod provider wrapping just_audio AudioPlayer with audio_service
+// for system media notifications, lockscreen controls, and Dynamic Island.
 import 'dart:async';
+import 'dart:typed_data';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:audio_service/audio_service.dart';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 
 import '../models/song.dart';
 import '../models/play_event.dart';
@@ -57,6 +62,126 @@ class PlayerState {
   }
 }
 
+// ── AudioHandler for system media notifications ──────────────
+class BeatSpillAudioHandler extends BaseAudioHandler with SeekHandler {
+  final AudioPlayer _player = AudioPlayer();
+
+  // Expose the underlying player so the notifier can observe streams
+  AudioPlayer get player => _player;
+
+  BeatSpillAudioHandler() {
+    // Broadcast player state to system notification
+    _player.playbackEventStream.map(_transformEvent).pipe(playbackState);
+  }
+
+  PlaybackState _transformEvent(PlaybackEvent event) {
+    return PlaybackState(
+      controls: [
+        MediaControl.skipToPrevious,
+        _player.playing ? MediaControl.pause : MediaControl.play,
+        MediaControl.skipToNext,
+      ],
+      systemActions: const {
+        MediaAction.seek,
+        MediaAction.seekForward,
+        MediaAction.seekBackward,
+      },
+      androidCompactActionIndices: const [0, 1, 2],
+      processingState: const {
+        ProcessingState.idle: AudioProcessingState.idle,
+        ProcessingState.loading: AudioProcessingState.loading,
+        ProcessingState.buffering: AudioProcessingState.buffering,
+        ProcessingState.ready: AudioProcessingState.ready,
+        ProcessingState.completed: AudioProcessingState.completed,
+      }[_player.processingState]!,
+      playing: _player.playing,
+      updatePosition: _player.position,
+      bufferedPosition: _player.bufferedPosition,
+      speed: _player.speed,
+      queueIndex: event.currentIndex,
+    );
+  }
+
+  @override
+  Future<void> play() => _player.play();
+
+  @override
+  Future<void> pause() => _player.pause();
+
+  @override
+  Future<void> seek(Duration position) => _player.seek(position);
+
+  @override
+  Future<void> stop() async {
+    await _player.stop();
+    return super.stop();
+  }
+
+  @override
+  Future<void> skipToNext() async {
+    // Handled by PlayerNotifier via callback
+    _skipNextCallback?.call();
+  }
+
+  @override
+  Future<void> skipToPrevious() async {
+    // Handled by PlayerNotifier via callback
+    _skipPreviousCallback?.call();
+  }
+
+  // Callbacks set by PlayerNotifier
+  VoidCallback? _skipNextCallback;
+  VoidCallback? _skipPreviousCallback;
+
+  void setSkipCallbacks({
+    required VoidCallback onNext,
+    required VoidCallback onPrevious,
+  }) {
+    _skipNextCallback = onNext;
+    _skipPreviousCallback = onPrevious;
+  }
+
+  /// Update the system notification with current song info
+  Future<void> updateSongNotification(Song song) async {
+    Uri? artUri;
+    if (song.artBytes != null && song.artBytes!.isNotEmpty) {
+      try {
+        final dir = await getTemporaryDirectory();
+        final file = File('${dir.path}/cover_${song.id}.jpg');
+        if (!file.existsSync()) {
+          file.writeAsBytesSync(song.artBytes!);
+        }
+        artUri = Uri.file(file.path);
+      } catch (_) {}
+    }
+
+    mediaItem.add(MediaItem(
+      id: song.id.toString(),
+      title: song.title,
+      artist: song.artist,
+      album: song.album,
+      duration: Duration(milliseconds: song.durationMs),
+      artUri: artUri,
+    ));
+  }
+}
+
+// ── Global audio handler ─────────────────────────────────────
+late BeatSpillAudioHandler audioHandler;
+
+Future<void> initAudioService() async {
+  audioHandler = await AudioService.init(
+    builder: () => BeatSpillAudioHandler(),
+    config: const AudioServiceConfig(
+      androidNotificationChannelId: 'com.beatspill.audio',
+      androidNotificationChannelName: 'BeatSpill',
+      androidNotificationOngoing: true,
+      androidStopForegroundOnPause: true,
+      androidNotificationIcon: 'mipmap/ic_launcher',
+    ),
+  );
+}
+
 // ── Player notifier ───────────────────────────────────────────
 class PlayerNotifier extends StateNotifier<PlayerState> {
   final Ref ref;
@@ -64,7 +189,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     _init();
   }
 
-  final AudioPlayer _player = AudioPlayer();
+  AudioPlayer get _player => audioHandler.player;
   final _db = DbService.instance;
 
   // Track current play event for updating listenedMs
@@ -78,6 +203,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   StreamSubscription<ProcessingState>? _processingSub;
 
   void _init() {
+    // Set up skip callbacks for system notification controls
+    audioHandler.setSkipCallbacks(
+      onNext: () => skipNext(),
+      onPrevious: () => skipPrevious(),
+    );
+
     // Position stream
     _positionSub = _player.positionStream.listen((pos) {
       if (mounted) {
@@ -119,6 +250,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       );
       await _player.play();
       await _logPlayEvent(song);
+
+      // Update system notification
+      await audioHandler.updateSongNotification(song);
     } catch (e) {
       // File may not exist or format unsupported — skip silently
     }
@@ -139,12 +273,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
   // ── Pause / Resume / Toggle ───────────────────────────────
   Future<void> pause() async {
-    await _player.pause();
+    await audioHandler.pause();
     await _updateListenedMs();
   }
 
   Future<void> resume() async {
-    await _player.play();
+    await audioHandler.play();
   }
 
   Future<void> togglePlayPause() async {
@@ -202,7 +336,33 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
   // ── Seek ──────────────────────────────────────────────────
   Future<void> seek(Duration position) async {
-    await _player.seek(position);
+    await audioHandler.seek(position);
+  }
+
+  /// Remove a song from the active queue (e.g. when hidden from library)
+  void removeSong(int songId) {
+    if (state.queue.isEmpty) return;
+    
+    final indexInQueue = state.queue.indexWhere((s) => s.id == songId);
+    if (indexInQueue != -1) {
+      final newQueue = List<Song>.from(state.queue);
+      newQueue.removeAt(indexInQueue);
+      
+      if (state.currentIndex == indexInQueue) {
+        if (newQueue.isNotEmpty) {
+          final nextIndex = state.currentIndex >= newQueue.length ? 0 : state.currentIndex;
+          state = state.copyWith(queue: newQueue, currentIndex: nextIndex);
+          play(newQueue[nextIndex]);
+        } else {
+          _player.stop();
+          state = state.copyWith(queue: [], currentIndex: 0, currentSong: null, isPlaying: false, position: Duration.zero);
+        }
+      } else if (state.currentIndex > indexInQueue) {
+        state = state.copyWith(queue: newQueue, currentIndex: state.currentIndex - 1);
+      } else {
+        state = state.copyWith(queue: newQueue);
+      }
+    }
   }
 
   // ── Shuffle & Repeat ──────────────────────────────────────
@@ -355,7 +515,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     _durationSub?.cancel();
     _playerStateSub?.cancel();
     _processingSub?.cancel();
-    _player.dispose();
     super.dispose();
   }
 }

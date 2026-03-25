@@ -92,7 +92,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                 _StatCard(
                   label: 'Streak',
                   value: streak.when(
-                    data: (v) => '$v d 🔥',
+                    data: (v) => '${v}d',
                     loading: () => '…',
                     error: (_, __) => '—',
                   ),
@@ -331,7 +331,7 @@ class _WrappedTriggerCard extends StatelessWidget {
                           valueColor: AlwaysStoppedAnimation(Colors.white),
                         ),
                       )
-                    : const Text('Generate now ↗',
+                    : const Text('See Wrapped',
                         style: TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w600,

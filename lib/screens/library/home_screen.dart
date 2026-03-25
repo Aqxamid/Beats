@@ -8,6 +8,7 @@ import '../../providers/player_provider.dart';
 import '../../widgets/mini_player.dart';
 import '../player/now_playing_screen.dart';
 import '../../models/song.dart';
+import '../profile/settings_screen.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -25,12 +26,23 @@ class HomeScreen extends ConsumerWidget {
             padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 20),
             children: [
               // ── Greeting ─────────────────────────
-              Text(
-                _greeting(),
-                style: Theme.of(context)
-                    .textTheme
-                    .headlineMedium
-                    ?.copyWith(fontSize: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    _greeting(),
+                    style: Theme.of(context)
+                        .textTheme
+                        .headlineMedium
+                        ?.copyWith(fontSize: 20),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.settings, color: BeatSpillTheme.textSecondary),
+                    onPressed: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
+                    },
+                  ),
+                ],
               ),
               const SizedBox(height: 14),
 
@@ -132,23 +144,21 @@ class HomeScreen extends ConsumerWidget {
                     Expanded(
                       child: _WrappedShortcut(
                         label: 'Top Songs',
-                        song: recentSongs.valueOrNull?.firstOrNull,
                         onTap: () {
                           ref.read(statsPeriodProvider.notifier).state = StatsPeriod.month;
                           ref.read(shellTabIndexProvider.notifier).state = 2; // Stats tab
                         },
                         gradient: const LinearGradient(
-                          colors: [BeatSpillTheme.green, Color(0xFF191414)],
+                          colors: [Color(0xFF2E8B57), Color(0xFF1A1A1A)],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: _WrappedShortcut(
                         label: 'Top Artists',
-                        song: recentSongs.valueOrNull?.elementAtOrNull(1),
                         onTap: () {
                           ref.read(statsPeriodProvider.notifier).state = StatsPeriod.month;
                           ref.read(shellTabIndexProvider.notifier).state = 2; // Stats tab
@@ -205,8 +215,7 @@ class _WrappedShortcut extends StatelessWidget {
   final String label;
   final Gradient gradient;
   final VoidCallback onTap;
-  final Song? song;
-  const _WrappedShortcut({required this.label, required this.gradient, required this.onTap, this.song});
+  const _WrappedShortcut({required this.label, required this.gradient, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -214,24 +223,67 @@ class _WrappedShortcut extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
       child: Container(
+        clipBehavior: Clip.hardEdge,
         decoration: BoxDecoration(
           gradient: gradient,
           borderRadius: BorderRadius.circular(8),
-          image: song?.artBytes != null && song!.artBytes!.isNotEmpty
-              ? DecorationImage(
-                  image: MemoryImage(Uint8List.fromList(song!.artBytes!)),
-                  fit: BoxFit.cover,
-                  opacity: 0.4,
-                )
-              : null,
         ),
-        padding: const EdgeInsets.all(12),
-        alignment: Alignment.bottomLeft,
-        child: Text(label,
-            style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w800,
-                fontSize: 14)),
+        child: Stack(
+          children: [
+            // Abstract geometric pattern
+            Positioned(
+              right: -20,
+              top: -20,
+              child: Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.15),
+                ),
+              ),
+            ),
+            Positioned(
+              left: -30,
+              bottom: -10,
+              child: Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.black.withOpacity(0.1),
+                ),
+              ),
+            ),
+            Positioned(
+              right: 20,
+              bottom: -30,
+              child: Transform.rotate(
+                angle: 0.5,
+                child: Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    color: Colors.white.withOpacity(0.08),
+                  ),
+                ),
+              ),
+            ),
+            // Text content
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Align(
+                alignment: Alignment.bottomLeft,
+                child: Text(label,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14)),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

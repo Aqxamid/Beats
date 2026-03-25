@@ -1,6 +1,6 @@
 # BeatSpill
 
-An offline-first music player for Android with on-device Wrapped recaps powered by Gemma 3 1B.
+An offline-first music player for Android with on-device Wrapped recaps powered by flexible GGUF LLM support.
 
 ## Features
 
@@ -25,13 +25,14 @@ An offline-first music player for Android with on-device Wrapped recaps powered 
 
 ### 🎁 Wrapped Recaps
 - Spotify Wrapped-style monthly recaps generated on-demand
-- 6-card swipeable slideshow: Intro → Minutes → Top Artist → Personality → LLM Recap → Share
+- 6-card swipeable slideshow: Intro → Minutes → Top Artist → Personality → AI Recap → Share
 - Personality types derived from listening habits (Night Owl, Early Bird, The Skimmer, etc.)
-- AI-generated recap paragraph via Gemma 3 1B (on-device, with mock fallback)
+- AI-generated recap paragraph via **Local GGUF Models** (on-device, with smart template fallback)
 - All reports saved to history for replay
 
 ### 📚 Library Management
 - **All Songs** listing with search, sort by artist/album
+- **Multi-Select Mode** — Long-press to select multiple songs for bulk removal/cleanup
 - **Liked Songs** collection with quick-toggle hearts
 - **Playlists** — create, add/remove songs, delete
 - **Metadata editor** — edit title, artist, album, genre per song
@@ -44,9 +45,9 @@ An offline-first music player for Android with on-device Wrapped recaps powered 
 ### 👤 Profile & Settings
 - User profile with stats summary
 - Wrapped cadence settings
-- LLM model configuration
-- Lyrics source display
+- **Local AI Configuration** — pick your preferred GGUF model file
+- Lyrics source management
 
 ## Tech Stack
 
-Flutter 3 · Riverpod 2 · Isar 3 · just_audio · on_audio_query · lrclib.net · Gemma 3 1B (MediaPipe)
+Flutter 3 · Riverpod 2 · Isar 3 · llama_cpp_dart · audio_service · lrclib.net

@@ -4,14 +4,17 @@ import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
 import '../../services/scanner_service.dart';
 
-class ScanningScreen extends StatefulWidget {
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../providers/stats_provider.dart';
+
+class ScanningScreen extends ConsumerStatefulWidget {
   const ScanningScreen({super.key});
 
   @override
-  State<ScanningScreen> createState() => _ScanningScreenState();
+  ConsumerState<ScanningScreen> createState() => _ScanningScreenState();
 }
 
-class _ScanningScreenState extends State<ScanningScreen> {
+class _ScanningScreenState extends ConsumerState<ScanningScreen> {
   int _current = 0;
   int _total = 0;
   String _statusText = 'Requesting permission…';
@@ -62,7 +65,12 @@ class _ScanningScreenState extends State<ScanningScreen> {
       });
 
       await Future.delayed(const Duration(milliseconds: 1200));
-      if (mounted) Navigator.pushReplacementNamed(context, '/home');
+      if (mounted) {
+        ref.invalidate(allSongsProvider);
+        ref.invalidate(recentSongsProvider);
+        ref.invalidate(likedSongsProvider);
+        Navigator.pushReplacementNamed(context, '/home');
+      }
     }
   }
 

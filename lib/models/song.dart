@@ -22,6 +22,7 @@ class Song {
   int playCount = 0;
   int skipCount = 0;
   bool isLiked = false;
+  bool isHidden = false;
 
   /// Album art bytes stored inline for offline use (nullable)
   List<byte>? artBytes;

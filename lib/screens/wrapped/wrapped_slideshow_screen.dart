@@ -1,6 +1,22 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:isar/isar.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../theme/app_theme.dart';
 import '../../models/wrapped_report.dart';
+import '../../services/db_service.dart';
+import '../../models/song.dart';
+
+IconData _personalityIcon(String iconName) {
+  switch (iconName) {
+    case 'nightlife':    return Icons.nightlife;
+    case 'wb_twilight':  return Icons.wb_twilight;
+    case 'fast_forward': return Icons.fast_forward;
+    case 'headphones':   return Icons.headphones;
+    case 'music_note':   return Icons.music_note;
+    default:             return Icons.music_note;
+  }
+}
 
 class WrappedSlideshowScreen extends StatefulWidget {
   final WrappedReport report;
@@ -197,9 +213,39 @@ class _MinutesCard extends StatelessWidget {
 }
 
 // ── Card 3: Top Artist ────────────────────────────────────────
-class _TopArtistCard extends StatelessWidget {
+class _TopArtistCard extends StatefulWidget {
   final WrappedReport report;
   const _TopArtistCard({required this.report});
+
+  @override
+  State<_TopArtistCard> createState() => _TopArtistCardState();
+}
+
+class _TopArtistCardState extends State<_TopArtistCard> {
+  Uint8List? _artistArt;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadArtistArt();
+  }
+
+  Future<void> _loadArtistArt() async {
+    // Look up songs by the top artist and use their album art
+    final allSongs = await DbService.instance.songs.where().findAll();
+    final songs = allSongs.where((s) => s.artist == widget.report.topArtist).toList();
+    
+    for (final song in songs) {
+      if (song.artBytes != null && song.artBytes!.isNotEmpty) {
+        if (mounted) {
+          setState(() {
+            _artistArt = Uint8List.fromList(song.artBytes!);
+          });
+        }
+        return;
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -216,29 +262,50 @@ class _TopArtistCard extends StatelessWidget {
               style: TextStyle(color: Colors.white70, fontSize: 14)),
           const SizedBox(height: 16),
           Container(
-            width: 80,
-            height: 80,
+            width: 100,
+            height: 100,
             decoration: BoxDecoration(
               color: const Color(0xFFC0392B),
               shape: BoxShape.circle,
               border: Border.all(color: Colors.white38, width: 2),
             ),
+            child: ClipOval(
+              child: _artistArt != null
+                  ? Image.memory(
+                      _artistArt!,
+                      fit: BoxFit.cover,
+                      width: 100,
+                      height: 100,
+                    )
+                  : Center(
+                      child: Text(
+                        widget.report.topArtist.isNotEmpty
+                            ? widget.report.topArtist[0].toUpperCase()
+                            : '♪',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 36,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+            ),
           ),
           const SizedBox(height: 16),
-          Text(report.topArtist,
+          Text(widget.report.topArtist,
               style: const TextStyle(
                   color: Colors.white,
                   fontSize: 28,
                   fontWeight: FontWeight.w900)),
           const SizedBox(height: 6),
-          Text('${report.topArtistPlays} plays',
+          Text('${widget.report.topArtistPlays} plays',
               style: const TextStyle(
                   color: BeatSpillTheme.green,
                   fontWeight: FontWeight.w700,
                   fontSize: 16)),
           const SizedBox(height: 12),
           const Text(
-            'She was there for you.\nSuspiciously often.',
+            'They were there for you.\nSuspiciously often.',
             textAlign: TextAlign.center,
             style: TextStyle(color: Colors.white, fontSize: 15, height: 1.5),
           ),
@@ -267,8 +334,8 @@ class _PersonalityCard extends StatelessWidget {
           const Text('your listening personality',
               style: TextStyle(color: Colors.white70, fontSize: 14)),
           const SizedBox(height: 16),
-          Text(report.personalityEmoji,
-              style: const TextStyle(fontSize: 64)),
+          Icon(_personalityIcon(report.personalityEmoji),
+              color: Colors.white, size: 64),
           const SizedBox(height: 12),
           Text(report.personalityType,
               style: const TextStyle(
@@ -323,7 +390,7 @@ class _LLMRecapCard extends StatelessWidget {
           ),
           const SizedBox(height: 20),
           const Text(
-            'Generated on-device · Gemma 3 1B',
+            'Generated on-device',
             style: TextStyle(color: Colors.white30, fontSize: 11),
           ),
         ],
@@ -333,9 +400,28 @@ class _LLMRecapCard extends StatelessWidget {
 }
 
 // ── Card 6: Share ─────────────────────────────────────────────
-class _ShareCard extends StatelessWidget {
+class _ShareCard extends StatefulWidget {
   final WrappedReport report;
   const _ShareCard({required this.report});
+
+  @override
+  State<_ShareCard> createState() => _ShareCardState();
+}
+
+class _ShareCardState extends State<_ShareCard> {
+  String _username = 'you';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUsername();
+  }
+
+  Future<void> _loadUsername() async {
+    final prefs = await SharedPreferences.getInstance();
+    final name = prefs.getString('username') ?? 'you';
+    if (mounted) setState(() => _username = name);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -348,17 +434,17 @@ class _ShareCard extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(report.periodLabel.toLowerCase() + ' wrapped',
+          Text(widget.report.periodLabel.toLowerCase() + ' wrapped',
               style: const TextStyle(color: Colors.white70, fontSize: 13)),
           const SizedBox(height: 6),
-          const Text('maya',
-              style: TextStyle(
+          Text(_username,
+              style: const TextStyle(
                   color: Colors.white,
                   fontSize: 32,
                   fontWeight: FontWeight.w900)),
           const SizedBox(height: 6),
           Text(
-            '${report.totalMinutes} mins · ${report.topArtist} · ${report.personalityType}',
+            '${widget.report.totalMinutes} mins · ${widget.report.topArtist} · ${widget.report.personalityType}',
             style: const TextStyle(color: Colors.white70, fontSize: 12),
             textAlign: TextAlign.center,
           ),

@@ -154,6 +154,35 @@ class DbService {
           {int limit = 5}) =>
       topArtistsForRange(DateTime(year, month), DateTime(year, month + 1), limit: limit);
 
+  // ── Song interactions ────────────────────────────
+
+  Future<void> hideSong(Id songId) async {
+    await _isar.writeTxn(() async {
+      final song = await songs.get(songId);
+      if (song != null) {
+        song.isHidden = true;
+        await songs.put(song);
+      }
+    });
+  }
+
+  Future<void> unhideSong(Id songId) async {
+    await _isar.writeTxn(() async {
+      final song = await songs.get(songId);
+      if (song != null) {
+        song.isHidden = false;
+        await songs.put(song);
+      }
+    });
+  }
+
+
+  Future<void> updateSong(Song song) async {
+    await _isar.writeTxn(() async {
+      await songs.put(song);
+    });
+  }
+
   // ── Playlist management ──────────────────────────
 
   Future<void> createPlaylist(String name) async {
@@ -173,11 +202,6 @@ class DbService {
     });
   }
 
-  Future<void> updateSong(Song song) async {
-    await _isar.writeTxn(() async {
-      await songs.put(song);
-    });
-  }
 
   Future<void> addSongToPlaylist(int playlistId, int songId) async {
     await _isar.writeTxn(() async {

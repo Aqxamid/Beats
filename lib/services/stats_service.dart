@@ -89,11 +89,12 @@ class StatsService {
   }
 
   /// Derive personality type from listening habits
+  /// Returns (type name, icon name) — icon name maps to Material icon in UI
   (String, String) _derivePersonality(int peakHour, double skipRate) {
-    if (peakHour >= 22 || peakHour <= 2) return ('Night Owl',    '🦉');
-    if (peakHour >= 5  && peakHour <= 8) return ('Early Bird',   '🐦');
-    if (skipRate > 0.4)                  return ('The Skimmer',  '⏩');
-    if (peakHour >= 12 && peakHour <= 14) return ('Lunch Listener', '🎧');
-    return ('The All-Day Streamer', '🎵');
+    if (peakHour >= 22 || peakHour <= 2) return ('Night Owl',    'nightlife');
+    if (peakHour >= 5  && peakHour <= 8) return ('Early Bird',   'wb_twilight');
+    if (skipRate > 0.4)                  return ('The Skimmer',  'fast_forward');
+    if (peakHour >= 12 && peakHour <= 14) return ('Lunch Listener', 'headphones');
+    return ('The All-Day Streamer', 'music_note');
   }
 }

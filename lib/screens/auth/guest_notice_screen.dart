@@ -1,5 +1,6 @@
 // screens/auth/guest_notice_screen.dart
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../theme/app_theme.dart';
 
 class GuestNoticeScreen extends StatelessWidget {
@@ -14,7 +15,7 @@ class GuestNoticeScreen extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Text('🎵', style: TextStyle(fontSize: 48)),
+              const Icon(Icons.music_note, color: Colors.white, size: 32),
               const SizedBox(height: 16),
               Text(
                 "You're in guest mode",
@@ -44,8 +45,13 @@ class GuestNoticeScreen extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               TextButton(
-                onPressed: () {
-                  Navigator.pushReplacementNamed(context, '/scan');
+                onPressed: () async {
+                  // Mark as onboarded so welcome screen won't show again
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.setBool('has_onboarded', true);
+                  if (context.mounted) {
+                    Navigator.pushReplacementNamed(context, '/scan');
+                  }
                 },
                 child: Text(
                   'Stay as guest →',

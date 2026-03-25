@@ -2,6 +2,7 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:palette_generator/palette_generator.dart';
 import 'package:text_scroll/text_scroll.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../theme/app_theme.dart';
@@ -11,7 +12,27 @@ import '../../services/db_service.dart';
 import '../../widgets/song_option_widgets.dart';
 import '../../services/lrc_parser.dart';
 import '../../providers/stats_provider.dart';
+import '../library/album_screen.dart';
 import 'lyrics_screen.dart';
+
+/// Color cache so we don't re-extract for the same song
+final _dominantColorCache = <int, Color>{};
+
+Future<Color> _extractColor(List<int> artBytes) async {
+  final provider = MemoryImage(Uint8List.fromList(artBytes));
+  try {
+    final palette = await PaletteGenerator.fromImageProvider(
+      provider,
+      maximumColorCount: 6,
+      size: const Size(80, 80),
+    );
+    return palette.dominantColor?.color ??
+        palette.vibrantColor?.color ??
+        const Color(0xFF333333);
+  } catch (_) {
+    return const Color(0xFF333333);
+  }
+}
 
 class NowPlayingScreen extends ConsumerStatefulWidget {
   final Song song;
@@ -21,17 +42,36 @@ class NowPlayingScreen extends ConsumerStatefulWidget {
   ConsumerState<NowPlayingScreen> createState() => _NowPlayingScreenState();
 }
 
-class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
+class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
+    with SingleTickerProviderStateMixin {
+  Color _dominantColor = const Color(0xFF333333);
+  late AnimationController _playPauseController;
+
   @override
   void initState() {
     super.initState();
-    // If this song isn't already playing, start it
-    final current = ref.read(playerProvider).currentSong;
-    if (current == null || current.id != widget.song.id) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        ref.read(playerProvider.notifier).play(widget.song);
-      });
+    _playPauseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    _extractDominant(widget.song);
+  }
+
+  @override
+  void dispose() {
+    _playPauseController.dispose();
+    super.dispose();
+  }
+
+  void _extractDominant(Song song) async {
+    if (song.artBytes == null || song.artBytes!.isEmpty) return;
+    if (_dominantColorCache.containsKey(song.id)) {
+      setState(() => _dominantColor = _dominantColorCache[song.id]!);
+      return;
     }
+    final color = await _extractColor(song.artBytes!);
+    _dominantColorCache[song.id] = color;
+    if (mounted) setState(() => _dominantColor = color);
   }
 
   @override
@@ -45,205 +85,251 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
         ? position.inMilliseconds / duration.inMilliseconds
         : 0.0;
 
-    return Scaffold(
-      backgroundColor: BeatSpillTheme.background,
-      body: SafeArea(
-        child: Column(
-          children: [
-            // ── Top bar ───────────────────────────────
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.keyboard_arrow_down,
-                        color: BeatSpillTheme.textSecondary),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                  Text(
-                    song.album,
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleSmall
-                        ?.copyWith(color: BeatSpillTheme.textSecondary),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.more_horiz,
-                        color: BeatSpillTheme.textSecondary),
-                    onPressed: () => _showContextMenu(context, song),
-                  ),
-                ],
-              ),
-            ),
+    // Update dominant color when song changes
+    if (song.id != widget.song.id || _dominantColor == const Color(0xFF333333)) {
+      _extractDominant(song);
+    }
 
-            // ── Album art ─────────────────────────────
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32),
-                child: AspectRatio(
-                  aspectRatio: 1,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: song.artBytes != null && song.artBytes!.isNotEmpty
-                        ? Image.memory(
-                            Uint8List.fromList(song.artBytes!),
-                            key: ValueKey('art_${song.id}'),
-                            fit: BoxFit.cover,
-                            gaplessPlayback: true,
-                          )
-                        : _PlaceholderArt(title: song.title),
+    // Sync play/pause animation
+    if (isPlaying) {
+      _playPauseController.forward();
+    } else {
+      _playPauseController.reverse();
+    }
+
+    return Scaffold(
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              _dominantColor,
+              _dominantColor.withOpacity(0.6),
+              BeatSpillTheme.background,
+            ],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            stops: const [0.0, 0.35, 0.75],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              // ── Top bar ───────────────────────────────
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.keyboard_arrow_down,
+                          color: Colors.white),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                    Flexible(
+                      child: Text(
+                        song.album,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleSmall
+                            ?.copyWith(color: Colors.white, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.more_horiz,
+                          color: Colors.white),
+                      onPressed: () => _showContextMenu(context, song),
+                    ),
+                  ],
+                ),
+              ),
+
+              // ── Album art ─────────────────────────────
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 32),
+                  child: AspectRatio(
+                    aspectRatio: 1,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        boxShadow: [
+                          BoxShadow(
+                            color: _dominantColor.withOpacity(0.4),
+                            blurRadius: 32,
+                            offset: const Offset(0, 12),
+                          ),
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: song.artBytes != null && song.artBytes!.isNotEmpty
+                            ? Image.memory(
+                                Uint8List.fromList(song.artBytes!),
+                                key: ValueKey('art_${song.id}'),
+                                fit: BoxFit.cover,
+                                gaplessPlayback: true,
+                              )
+                            : _PlaceholderArt(title: song.title),
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
 
-            const SizedBox(height: 24),
+              const SizedBox(height: 24),
 
-            // ── Title + like ──────────────────────────
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        TextScroll(song.title,
-                            velocity: const Velocity(pixelsPerSecond: Offset(30, 0)),
-                            delayBefore: const Duration(seconds: 2),
-                            pauseBetween: const Duration(seconds: 2),
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w700,
-                                )),
-                        const SizedBox(height: 2),
-                        Text(song.artist,
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodyMedium
-                                ?.copyWith(color: BeatSpillTheme.textSecondary)),
-                      ],
+              // ── Title + like ──────────────────────────
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          TextScroll(song.title,
+                              velocity: const Velocity(pixelsPerSecond: Offset(30, 0)),
+                              delayBefore: const Duration(seconds: 2),
+                              pauseBetween: const Duration(seconds: 2),
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w700,
+                                  )),
+                          const SizedBox(height: 2),
+                          Text(song.artist,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(color: Colors.white70)),
+                        ],
+                      ),
                     ),
-                  ),
-                  IconButton(
-                    icon: Icon(
-                      song.isLiked ? Icons.favorite : Icons.favorite_border,
-                      color: song.isLiked
-                          ? BeatSpillTheme.green
-                          : BeatSpillTheme.textSecondary,
-                    ),
-                    onPressed: () {
-                      ref.read(playerProvider.notifier).toggleLike();
-                    },
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 8),
-
-            // ── Progress bar ──────────────────────────
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(
-                children: [
-                  SliderTheme(
-                    data: SliderThemeData(
-                      trackHeight: 3,
-                      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                      overlayShape: SliderComponentShape.noOverlay,
-                      activeTrackColor: BeatSpillTheme.textPrimary,
-                      inactiveTrackColor: BeatSpillTheme.textMuted,
-                      thumbColor: BeatSpillTheme.textPrimary,
-                    ),
-                    child: Slider(
-                      value: progress.clamp(0.0, 1.0),
-                      onChanged: (v) {
-                        final newPos = Duration(
-                          milliseconds: (v * duration.inMilliseconds).toInt(),
-                        );
-                        ref.read(playerProvider.notifier).seek(newPos);
+                    IconButton(
+                      icon: Icon(
+                        song.isLiked ? Icons.favorite : Icons.favorite_border,
+                        color: song.isLiked
+                            ? BeatSpillTheme.green
+                            : BeatSpillTheme.textSecondary,
+                      ),
+                      onPressed: () {
+                        ref.read(playerProvider.notifier).toggleLike();
                       },
                     ),
-                  ),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(_formatDuration(position),
-                          style: Theme.of(context).textTheme.bodySmall),
-                      Text(_formatDuration(duration),
-                          style: Theme.of(context).textTheme.bodySmall),
-                    ],
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
 
-            // ── Controls ──────────────────────────────
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  IconButton(
-                    icon: Icon(Icons.shuffle,
-                        color: playerState.shuffleEnabled
-                            ? BeatSpillTheme.green
-                            : BeatSpillTheme.textSecondary),
-                    onPressed: () {
-                      ref.read(playerProvider.notifier).toggleShuffle();
-                    },
-                  ),
-                  IconButton(
-                    iconSize: 36,
-                    icon: const Icon(Icons.skip_previous, color: BeatSpillTheme.textPrimary),
-                    onPressed: () {
-                      ref.read(playerProvider.notifier).skipPrevious();
-                    },
-                  ),
-                  GestureDetector(
-                    onTap: () {
-                      ref.read(playerProvider.notifier).togglePlayPause();
-                    },
-                    child: Container(
-                      width: 56,
-                      height: 56,
-                      decoration: const BoxDecoration(
-                        color: BeatSpillTheme.textPrimary,
-                        shape: BoxShape.circle,
+              const SizedBox(height: 8),
+
+              // ── Progress bar ──────────────────────────
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  children: [
+                    SliderTheme(
+                      data: SliderThemeData(
+                        trackHeight: 3,
+                        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                        overlayShape: SliderComponentShape.noOverlay,
+                        activeTrackColor: BeatSpillTheme.textPrimary,
+                        inactiveTrackColor: BeatSpillTheme.textMuted,
+                        thumbColor: BeatSpillTheme.textPrimary,
                       ),
-                      child: Icon(
-                        isPlaying ? Icons.pause : Icons.play_arrow,
-                        color: Colors.black,
-                        size: 28,
+                      child: Slider(
+                        value: progress.clamp(0.0, 1.0),
+                        onChanged: (v) {
+                          final newPos = Duration(
+                            milliseconds: (v * duration.inMilliseconds).toInt(),
+                          );
+                          ref.read(playerProvider.notifier).seek(newPos);
+                        },
                       ),
                     ),
-                  ),
-                  IconButton(
-                    iconSize: 36,
-                    icon: const Icon(Icons.skip_next, color: BeatSpillTheme.textPrimary),
-                    onPressed: () {
-                      ref.read(playerProvider.notifier).skipNext();
-                    },
-                  ),
-                  IconButton(
-                    icon: Icon(Icons.repeat,
-                        color: playerState.repeatMode != PlayerRepeatMode.off
-                            ? BeatSpillTheme.green
-                            : BeatSpillTheme.textSecondary),
-                    onPressed: () {
-                      ref.read(playerProvider.notifier).toggleRepeat();
-                    },
-                  ),
-                ],
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(_formatDuration(position),
+                            style: Theme.of(context).textTheme.bodySmall),
+                        Text(_formatDuration(duration),
+                            style: Theme.of(context).textTheme.bodySmall),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
 
-            // ── Lyrics Peek Card ─────────────────────
-            _LyricsPeek(song: song),
-          ],
+              // ── Controls ──────────────────────────────
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    IconButton(
+                      icon: Icon(Icons.shuffle,
+                          color: playerState.shuffleEnabled
+                              ? BeatSpillTheme.green
+                              : BeatSpillTheme.textSecondary),
+                      onPressed: () {
+                        ref.read(playerProvider.notifier).toggleShuffle();
+                      },
+                    ),
+                    IconButton(
+                      iconSize: 36,
+                      icon: const Icon(Icons.skip_previous, color: BeatSpillTheme.textPrimary),
+                      onPressed: () {
+                        ref.read(playerProvider.notifier).skipPrevious();
+                      },
+                    ),
+                    GestureDetector(
+                      onTap: () {
+                        ref.read(playerProvider.notifier).togglePlayPause();
+                      },
+                      child: Container(
+                        width: 56,
+                        height: 56,
+                        decoration: const BoxDecoration(
+                          color: BeatSpillTheme.textPrimary,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: AnimatedIcon(
+                            icon: AnimatedIcons.play_pause,
+                            progress: _playPauseController,
+                            color: Colors.black,
+                            size: 28,
+                          ),
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      iconSize: 36,
+                      icon: const Icon(Icons.skip_next, color: BeatSpillTheme.textPrimary),
+                      onPressed: () {
+                        ref.read(playerProvider.notifier).skipNext();
+                      },
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.repeat,
+                          color: playerState.repeatMode != PlayerRepeatMode.off
+                              ? BeatSpillTheme.green
+                              : BeatSpillTheme.textSecondary),
+                      onPressed: () {
+                        ref.read(playerProvider.notifier).toggleRepeat();
+                      },
+                    ),
+                  ],
+                ),
+              ),
+
+              // ── Lyrics Peek Card ─────────────────────
+              _LyricsPeek(song: song, dominantColor: _dominantColor),
+            ],
+          ),
         ),
       ),
     );
@@ -322,8 +408,12 @@ class _ContextMenu extends ConsumerWidget {
         Share.share('Check out this song: ${currentSong.title} by ${currentSong.artist}');
       }),
       (Icons.album, 'View album', () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Showing all songs from album: ${currentSong.album}')),
+        Navigator.pop(context);
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => AlbumScreen(albumName: currentSong.album, artist: currentSong.artist),
+          ),
         );
       }),
       (Icons.info_outline, 'Song credits', () {
@@ -331,6 +421,40 @@ class _ContextMenu extends ConsumerWidget {
       }),
       (Icons.timer, 'Sleep timer', () {
         _showSleepTimerSelector(context, ref);
+      }),
+      (Icons.remove_circle_outline, 'Remove from library', () async {
+        final confirm = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: const Color(0xFF282828),
+            title: const Text('Remove Song', style: TextStyle(color: Colors.white)),
+            content: Text('Remove "${currentSong.title}" from your library? The file will not be deleted from your device.',
+                style: const TextStyle(color: Colors.white70)),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel', style: TextStyle(color: BeatSpillTheme.textSecondary)),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Remove', style: TextStyle(color: BeatSpillTheme.red)),
+              ),
+            ],
+          ),
+        );
+        if (confirm == true) {
+          await DbService.instance.hideSong(currentSong.id);
+          if (context.mounted) {
+            ref.read(playerProvider.notifier).removeSong(currentSong.id);
+            ref.invalidate(allSongsProvider);
+            ref.invalidate(likedSongsProvider);
+            ref.invalidate(recentSongsProvider);
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Song removed from library')));
+          }
+        }
+        if (context.mounted) {
+          Navigator.pop(context); // Close the bottom sheet
+        }
       }),
     ];
 
@@ -455,7 +579,8 @@ class _ContextMenu extends ConsumerWidget {
 // ── Lyrics Peek Widget ────────────────────────────────────────
 class _LyricsPeek extends ConsumerStatefulWidget {
   final Song song;
-  const _LyricsPeek({required this.song});
+  final Color dominantColor;
+  const _LyricsPeek({required this.song, required this.dominantColor});
 
   @override
   ConsumerState<_LyricsPeek> createState() => _LyricsPeekState();
@@ -476,6 +601,12 @@ class _LyricsPeekState extends ConsumerState<_LyricsPeek> {
     final lyricsAsync = ref.watch(lyricsProvider(widget.song));
     final position = ref.watch(playerProvider).position;
 
+    // Use the dominant color for the lyrics card
+    final cardColor = HSLColor.fromColor(widget.dominantColor)
+        .withLightness(0.25)
+        .withSaturation(0.6)
+        .toColor();
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
       child: GestureDetector(
@@ -491,7 +622,7 @@ class _LyricsPeekState extends ConsumerState<_LyricsPeek> {
           height: 160,
           width: double.infinity,
           decoration: BoxDecoration(
-            color: const Color(0xFFC44D20), // Premium Burnt Orange
+            color: cardColor,
             borderRadius: BorderRadius.circular(12),
           ),
           child: lyricsAsync.when(
@@ -501,8 +632,9 @@ class _LyricsPeekState extends ConsumerState<_LyricsPeek> {
               if (lines.isEmpty) return _peekPlaceholder();
 
               int activeIndex = -1;
+              final adjustedPosition = position;
               for (int i = 0; i < lines.length; i++) {
-                if (position >= lines[i].timestamp) activeIndex = i;
+                if (adjustedPosition >= lines[i].timestamp) activeIndex = i;
                 else break;
               }
 
@@ -512,7 +644,7 @@ class _LyricsPeekState extends ConsumerState<_LyricsPeek> {
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   if (_scrollController.hasClients) {
                     const lineHeight = 44.0;
-                    final target = (activeIndex * lineHeight) - 58.0; // center in 160 height
+                    final target = (activeIndex * lineHeight) - 58.0;
                     _scrollController.animateTo(
                       target.clamp(0, _scrollController.position.maxScrollExtent),
                       duration: const Duration(milliseconds: 600),
@@ -603,4 +735,3 @@ class _LyricsPeekState extends ConsumerState<_LyricsPeek> {
     );
   }
 }
-

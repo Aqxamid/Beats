@@ -31,7 +31,7 @@ class ProfileScreen extends StatelessWidget {
                 CircleAvatar(
                   radius: 40,
                   backgroundColor: const Color(0xFF2E8B57),
-                  child: const Text('🎵', style: TextStyle(fontSize: 32)),
+                  child: const Icon(Icons.person, color: Colors.white, size: 32),
                 ),
                 const SizedBox(height: 10),
                 const Text('maya',

@@ -1,6 +1,6 @@
 name: beatspill
 description: BeatSpill — offline music player with on-device Wrapped recaps.
-version: 1.0.0+1
+version: 1.1.0+2
 
 environment:
   sdk: ">=3.0.0 <4.0.0"
@@ -20,8 +20,6 @@ dependencies:
 
   # Audio playback
   just_audio: ^0.9.36
-  just_audio_background: ^0.0.1-beta.11
-  audio_service: ^0.18.13
 
   # Google sign-in
   google_sign_in: ^6.2.1
@@ -39,7 +37,7 @@ dependencies:
   cached_network_image: ^3.3.1
 
   # Shared preferences (settings)
-  shared_preferences: ^2.2.3
+  shared_preferences: ^2.5.4
 
   # UUID for IDs
   uuid: ^4.4.0
@@ -53,12 +51,34 @@ dependencies:
   # For sharing songs
   share_plus: ^7.2.2
 
+  # Media notifications / lockscreen / dynamic island
+  audio_service: ^0.18.12
+  audio_session: ^0.1.18
+
+  # Color extraction from album art
+  palette_generator: ^0.3.3+4
+
+  # Local LLM (GGUF)
+  llama_cpp_dart: ^0.1.1
+  file_picker: ^8.0.0
+
+
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
   isar_generator: ^3.1.0
   build_runner: ^2.4.9
   flutter_lints: ^3.0.0
+  flutter_launcher_icons: ^0.14.1
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "C:/Users/ADMIN/.gemini/antigravity/brain/c4d8cac1-8ad4-4e9a-a375-a788af36f6c9/media__1774450392983.png"
+  min_sdk_android: 21
+  adaptive_icon_background: "#121212"
+  adaptive_icon_foreground: "C:/Users/ADMIN/.gemini/antigravity/brain/c4d8cac1-8ad4-4e9a-a375-a788af36f6c9/media__1774450392983.png"
 
 flutter:
   uses-material-design: true
