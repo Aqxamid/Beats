@@ -540,28 +540,47 @@ class _LyricsPeekState extends ConsumerState<_LyricsPeek> {
                       ],
                     ),
                   ),
-                  Expanded(
+                    Expanded(
                     child: ListView.builder(
                       controller: _scrollController,
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       itemCount: lines.length,
                       itemBuilder: (_, i) {
                         final isActive = i == activeIndex;
-                        return Container(
-                          height: 44,
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            lines[i].text,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: isActive ? 18 : 15,
-                              fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
-                              color: isActive
-                                  ? Colors.white
-                                  : Colors.white.withOpacity(0.4),
-                            ),
-                          ),
+                        final distance = (i - activeIndex).abs();
+                        final targetOpacity = isActive ? 1.0 : (distance == 1 ? 0.55 : 0.25);
+                        final targetSize = isActive ? 18.0 : 15.0;
+
+                        return TweenAnimationBuilder<double>(
+                          tween: Tween(end: targetOpacity),
+                          duration: const Duration(milliseconds: 350),
+                          curve: Curves.easeOutCubic,
+                          builder: (context, opacity, _) {
+                            return TweenAnimationBuilder<double>(
+                              tween: Tween(end: targetSize),
+                              duration: const Duration(milliseconds: 350),
+                              curve: Curves.easeOutCubic,
+                              builder: (context, fontSize, _) {
+                                return Container(
+                                  height: 44,
+                                  alignment: Alignment.centerLeft,
+                                  child: Opacity(
+                                    opacity: opacity,
+                                    child: Text(
+                                      lines[i].text,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: fontSize,
+                                        fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            );
+                          },
                         );
                       },
                     ),

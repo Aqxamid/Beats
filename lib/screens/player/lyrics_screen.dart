@@ -84,27 +84,53 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
                     itemCount: lines.length,
                     itemBuilder: (_, i) {
                       final isActive = i == activeIndex;
+                      final distance = (i - activeIndex).abs();
+                      final targetOpacity = isActive ? 1.0 : (distance == 1 ? 0.5 : 0.25);
+                      final targetSize = isActive ? 26.0 : (distance == 1 ? 19.0 : 16.0);
+                      final targetWeight = isActive ? FontWeight.w800 : FontWeight.w600;
+
                       return GestureDetector(
                         onTap: () {
                           if (lines[i].timestamp != Duration.zero) {
                             ref.read(playerProvider.notifier).seek(lines[i].timestamp);
                           }
                         },
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 300),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          child: Text(
-                            lines[i].text,
-                            style: TextStyle(
-                              fontSize: isActive ? 24 : 18,
-                              fontWeight:
-                                  isActive ? FontWeight.w800 : FontWeight.w600,
-                              color: isActive
-                                  ? BeatSpillTheme.textPrimary
-                                  : BeatSpillTheme.textSecondary.withOpacity(0.4),
-                              height: 1.4,
-                            ),
-                          ),
+                        child: TweenAnimationBuilder<double>(
+                          tween: Tween(end: targetOpacity),
+                          duration: const Duration(milliseconds: 400),
+                          curve: Curves.easeOutCubic,
+                          builder: (context, opacity, child) {
+                            return TweenAnimationBuilder<double>(
+                              tween: Tween(end: targetSize),
+                              duration: const Duration(milliseconds: 400),
+                              curve: Curves.easeOutCubic,
+                              builder: (context, fontSize, _) {
+                                return AnimatedContainer(
+                                  duration: const Duration(milliseconds: 400),
+                                  curve: Curves.easeOutCubic,
+                                  padding: EdgeInsets.symmetric(
+                                    vertical: isActive ? 16 : 10,
+                                  ),
+                                  child: Transform.scale(
+                                    scale: isActive ? 1.0 : 0.95,
+                                    alignment: Alignment.centerLeft,
+                                    child: Opacity(
+                                      opacity: opacity,
+                                      child: Text(
+                                        lines[i].text,
+                                        style: TextStyle(
+                                          fontSize: fontSize,
+                                          fontWeight: targetWeight,
+                                          color: BeatSpillTheme.textPrimary,
+                                          height: 1.4,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            );
+                          },
                         ),
                       );
                     },
