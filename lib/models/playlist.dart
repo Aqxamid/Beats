@@ -1,0 +1,24 @@
+// ─────────────────────────────────────────────────────────────
+// models/playlist.dart
+// User-created playlists (Shazam, Roadtrip, etc.)
+// ─────────────────────────────────────────────────────────────
+import 'package:isar/isar.dart';
+import 'song.dart';
+
+part 'playlist.g.dart';
+
+@Collection()
+class Playlist {
+  Id id = Isar.autoIncrement;
+
+  late String name;
+  late DateTime createdAt;
+  DateTime? updatedAt;
+
+  /// Hex color string for the cover tile, e.g. "#1A3A5C"
+  String coverColor = '#1DB954';
+
+  final songs = IsarLinks<Song>();
+
+  int get songCount => songs.length;
+}

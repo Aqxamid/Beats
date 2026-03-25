@@ -1,0 +1,71 @@
+name: beatspill
+description: BeatSpill — offline music player with on-device Wrapped recaps.
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Local database
+  isar: ^3.1.0
+  isar_flutter_libs: ^3.1.0  # includes native libs
+  path_provider: ^2.1.2
+
+  # State management
+  riverpod: ^2.5.1
+  flutter_riverpod: ^2.5.1
+
+  # Audio playback
+  just_audio: ^0.9.36
+  just_audio_background: ^0.0.1-beta.11
+  audio_service: ^0.18.13
+
+  # Google sign-in
+  google_sign_in: ^6.2.1
+
+  # Lyrics (lrclib.net)
+  http: ^1.2.1
+
+  # Permissions
+  permission_handler: ^11.3.1
+
+  # Local file scanning
+  on_audio_query: ^2.9.0
+
+  # Image loading / caching
+  cached_network_image: ^3.3.1
+
+  # Shared preferences (settings)
+  shared_preferences: ^2.2.3
+
+  # UUID for IDs
+  uuid: ^4.4.0
+
+  # Intl (date formatting for Wrapped)
+  intl: ^0.19.0
+  
+  # For scrolling long song titles
+  text_scroll: ^0.2.0
+
+  # For sharing songs
+  share_plus: ^7.2.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  isar_generator: ^3.1.0
+  build_runner: ^2.4.9
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/
+
+dependency_overrides:
+  path_provider_foundation: <2.4.0
+  shared_preferences_foundation: <2.4.0
+  sqflite: 2.3.3+2
