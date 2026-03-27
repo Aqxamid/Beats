@@ -496,10 +496,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               showAboutDialog(
                 context: context,
                 applicationName: 'Bop',
-                applicationVersion: '2.3.0',
+                applicationVersion: '2.3.5',
                 applicationIcon: const Icon(Icons.music_note, color: BopTheme.green),
                 children: [
-                  const Text('Bop v2.3.0 - Aquamid.'),
+                  const Text('Bop v2.3.5 - Aquamid.'),
                 ],
               );
             },

@@ -49,6 +49,8 @@ class DbService {
     final events = await playEvents
         .filter()
         .startedAtBetween(start, end)
+        .and()
+        .song((q) => q.isHiddenEqualTo(false))
         .findAll();
     final totalMs = events.fold<int>(0, (sum, e) => sum + e.listenedMs);
     return totalMs ~/ 60000;
@@ -58,6 +60,8 @@ class DbService {
     final events = await playEvents
         .filter()
         .startedAtBetween(start, end)
+        .and()
+        .song((q) => q.isHiddenEqualTo(false))
         .findAll();
     return events.map((e) => e.songTitle).toSet().length;
   }
@@ -65,7 +69,8 @@ class DbService {
   /// Listening streak: consecutive days with ≥1 play up to today
   Future<int> currentStreak() async {
     final all = await playEvents
-        .where()
+        .filter()
+        .song((q) => q.isHiddenEqualTo(false))
         .findAll();
     all.sort((a, b) => b.startedAt.compareTo(a.startedAt));
     if (all.isEmpty) return 0;
@@ -88,9 +93,13 @@ class DbService {
 
   /// Overall skip rate (all time)
   Future<double> overallSkipRate() async {
-    final total = await playEvents.count();
+    final total = await playEvents.filter().song((q) => q.isHiddenEqualTo(false)).count();
     if (total == 0) return 0;
-    final skipped = await playEvents.filter().wasSkippedEqualTo(true).count();
+    final skipped = await playEvents.filter()
+        .wasSkippedEqualTo(true)
+        .and()
+        .song((q) => q.isHiddenEqualTo(false))
+        .count();
     return skipped / total;
   }
 
@@ -100,6 +109,8 @@ class DbService {
     final events = await playEvents
         .filter()
         .startedAtBetween(start, end)
+        .and()
+        .song((q) => q.isHiddenEqualTo(false))
         .findAll();
 
     final matrix = List.generate(7, (_) => List.filled(24, 0));
@@ -115,6 +126,8 @@ class DbService {
     final events = await playEvents
         .filter()
         .startedAtBetween(start, end)
+        .and()
+        .song((q) => q.isHiddenEqualTo(false))
         .findAll();
 
     final counts = <String, int>{};
@@ -148,6 +161,8 @@ class DbService {
     final events = await playEvents
         .filter()
         .startedAtBetween(start, end)
+        .and()
+        .song((q) => q.isHiddenEqualTo(false))
         .findAll();
 
     final counts = <String, int>{};
@@ -165,6 +180,8 @@ class DbService {
     final events = await playEvents
         .filter()
         .startedAtBetween(start, end)
+        .and()
+        .song((q) => q.isHiddenEqualTo(false))
         .findAll();
 
     // Map title/artist combo to count to handle cases where songs might have been deleted/re-indexed
@@ -239,6 +256,18 @@ class DbService {
 
   Future<void> deleteSong(Id songId) async {
     await _isar.writeTxn(() async {
+      // 1. Delete associated play events to keep stats clean
+      final relatedEvents = await playEvents
+          .filter()
+          .song((q) => q.idEqualTo(songId))
+          .findAll();
+      
+      final eventIds = relatedEvents.map((e) => e.id).toList();
+      if (eventIds.isNotEmpty) {
+        await playEvents.deleteAll(eventIds);
+      }
+
+      // 2. Delete the song itself
       await songs.delete(songId);
     });
   }

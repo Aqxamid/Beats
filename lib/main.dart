@@ -12,6 +12,7 @@ import 'theme/app_theme.dart';
 import 'screens/auth/auth_screen.dart';
 import 'screens/main_shell.dart';
 import 'screens/library/scanning_screen.dart';
+import 'services/notification_service.dart';
 import 'providers/player_provider.dart';
 
 Future<void> main() async {
@@ -41,6 +42,10 @@ Future<void> main() async {
   // Initialize LLM if model path exists
   await LlmService.instance.loadModel();
 
+  // Initialize notifications
+  await NotificationService.instance.init();
+  await NotificationService.instance.scheduleMonthlyRecapReminder();
+
   final prefs = await SharedPreferences.getInstance();
   final hasOnboarded = prefs.getBool('onboarded') ?? false;
 
@@ -56,6 +61,7 @@ Future<void> _requestPermissions() async {
   if (Platform.isAndroid) {
     // Android 13+ (SDK 33+)
     await Permission.audio.request();
+    await Permission.notification.request();
     // Fallback for older
     await Permission.storage.request();
   }

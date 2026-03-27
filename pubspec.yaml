@@ -1,6 +1,6 @@
 name: bop
 description: Bop — the ultimate offline music player with on-device Recap stories.
-version: 2.3.0+1
+version: 2.3.5+1
 
 environment:
   sdk: ">=3.0.0 <4.0.0"
@@ -62,6 +62,8 @@ dependencies:
   llama_cpp_dart: ^0.1.1
   file_picker: ^8.0.0
   screenshot: ^3.0.0
+  flutter_local_notifications: ^17.2.1
+  timezone: ^0.9.4
 
 
 

@@ -45,6 +45,7 @@ class StatsService {
     report.totalSongs   = await _db.songsForRange(start, end);
     report.streakDays   = await _db.currentStreak();
     report.skipRate     = await _db.overallSkipRate();
+    final heatmap       = await _db.heatmapForRange(start, end);
 
     if (report.totalMinutes == 0 && report.totalSongs == 0) {
        report.topArtist = 'None';
@@ -53,7 +54,7 @@ class StatsService {
        report.personalityType = 'The Observer';
        report.personalityEmoji = 'music_note';
        report.genreJsonStr = '{}';
-       report.slidesJsonStr = jsonEncode({'topSongs': []});
+       report.slidesJsonStr = jsonEncode({'topSongs': [], 'heatmap': []});
        return report;
     }
 
@@ -99,20 +100,22 @@ class StatsService {
           'minutes': songMins
         });
       }
-      report.slidesJsonStr = jsonEncode({'topSongs': top5JSON});
+      report.slidesJsonStr = jsonEncode({
+        'topSongs': top5JSON,
+        'heatmap': heatmap,
+      });
     } else {
       report.topSong = 'Unknown';
-      report.slidesJsonStr = jsonEncode({'topSongs': []});
+      report.slidesJsonStr = jsonEncode({'topSongs': [], 'heatmap': heatmap});
     }
 
-    // ── Heatmap → peak hour ─────────────────────────
-    final heatmap = await _db.heatmapForRange(start, end);
+    // ── Peak hour ──────────────────────────────────
     int peakHour = 0;
     int peakCount = 0;
     for (int h = 0; h < 24; h++) {
       int total = 0;
       for (var row in heatmap) {
-        if (h < row.length) total += row[h];
+        if (h < (row as List).length) total += (row[h] as num).toInt();
       }
       if (total > peakCount) {
         peakCount = total;

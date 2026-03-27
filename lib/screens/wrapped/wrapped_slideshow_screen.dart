@@ -1248,10 +1248,22 @@ class _VibeMapCard extends StatelessWidget {
     final theme = RecapTheme.get(report.generatedAt.month, report.cadence == 'yearly');
     
     Widget content;
-    if (sortedGenres.length == 1) {
-       content = _soloGenre(sortedGenres.first, isBold);
+    List<dynamic> heatmapData = [];
+    try {
+      final slidesData = jsonDecode(report.slidesJsonStr);
+      if (slidesData != null && slidesData['heatmap'] != null) {
+        heatmapData = slidesData['heatmap'] as List<dynamic>;
+      }
+    } catch (_) {}
+
+    if (heatmapData.isEmpty) {
+        if (sortedGenres.length == 1) {
+          content = _soloGenre(sortedGenres.first, isBold);
+        } else {
+          content = _multiGenre(sortedGenres.take(5).toList(), isBold);
+        }
     } else {
-       content = _multiGenre(sortedGenres.take(5).toList(), isBold);
+        content = _MoodHeatmap(heatmapData: heatmapData, sortedGenres: sortedGenres, isBold: isBold);
     }
 
     return _Slide(
@@ -1268,9 +1280,9 @@ class _VibeMapCard extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 80),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                const Text('your vibe map',
+                const Text('your mood heatmap',
                     style: TextStyle(color: Colors.white70, fontSize: 16, letterSpacing: 0.5)),
                 const SizedBox(height: 32),
                 Expanded(child: content),
@@ -1814,4 +1826,159 @@ class _RecapSummaryCard extends StatelessWidget {
       child: Text(title.toUpperCase(), style: const TextStyle(color: Colors.white54, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1)),
     );
   }
+}
+
+class _MoodHeatmap extends StatefulWidget {
+  final List<dynamic> heatmapData;
+  final List<MapEntry<String, int>> sortedGenres;
+  final bool isBold;
+
+  const _MoodHeatmap({required this.heatmapData, required this.sortedGenres, this.isBold = false});
+
+  @override
+  State<_MoodHeatmap> createState() => _MoodHeatmapState();
+}
+
+class _MoodHeatmapState extends State<_MoodHeatmap> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: const Duration(seconds: 20))..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hourlyIntensity = List.filled(24, 0);
+    for (var day in widget.heatmapData) {
+      if (day is List) {
+        for (int h = 0; h < 24; h++) {
+          if (h < day.length) hourlyIntensity[h] += (day[h] as num).toInt();
+        }
+      }
+    }
+
+    final maxVal = hourlyIntensity.fold<int>(0, (m, v) => v > m ? v : m).toDouble();
+
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const SizedBox(height: 20),
+        Expanded(
+          child: AnimatedBuilder(
+            animation: _controller,
+            builder: (context, child) {
+              return CustomPaint(
+                size: const Size(double.infinity, double.infinity),
+                painter: _MoodRadialPainter(
+                  hourlyIntensity, 
+                  maxVal, 
+                  _controller.value * 2 * pi,
+                  isBold: widget.isBold
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 48),
+        Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 8,
+          runSpacing: 8,
+          children: widget.sortedGenres.take(3).map((e) {
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(e.key, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 20),
+      ],
+    );
+  }
+}
+
+class _MoodRadialPainter extends CustomPainter {
+  final List<int> intensities;
+  final double max;
+  final double rotation;
+  final bool isBold;
+
+  _MoodRadialPainter(this.intensities, this.max, this.rotation, {this.isBold = false});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.shortestSide <= 0) return;
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = min(size.width, size.height) / 2.8;
+    final paint = Paint()..style = PaintingStyle.fill;
+
+    final segmentAngle = (2 * pi) / 24;
+
+    canvas.save();
+    canvas.translate(center.dx, center.dy);
+    canvas.rotate(rotation);
+
+    for (int i = 0; i < 24; i++) {
+        final val = intensities[i];
+        final strength = max > 0 ? val / max : 0.0;
+        final hRadius = radius + (strength * 40);
+        
+        // Define color based on hour (time of day)
+        Color color;
+        if (i >= 22 || i <= 4) {
+          color = Colors.deepPurpleAccent.withOpacity(0.5 + 0.5 * strength);
+        } else if (i >= 5 && i <= 10) {
+          color = Colors.orangeAccent.withOpacity(0.5 + 0.5 * strength);
+        } else if (i >= 11 && i <= 16) {
+          color = Colors.cyanAccent.withOpacity(0.5 + 0.5 * strength);
+        } else {
+          color = Colors.pinkAccent.withOpacity(0.5 + 0.5 * strength);
+        }
+
+        if (isBold) {
+          color = color.withOpacity(0.9);
+        }
+
+        paint.color = color;
+        
+        canvas.drawArc(
+          Rect.fromCircle(center: Offset.zero, radius: hRadius),
+          i * segmentAngle,
+          segmentAngle * 0.9,
+          true,
+          paint
+        );
+    }
+    
+    // Smooth inner center
+    paint.shader = const RadialGradient(
+      colors: [Colors.black54, Colors.transparent],
+    ).createShader(Rect.fromCircle(center: Offset.zero, radius: radius * 0.8));
+    canvas.drawCircle(Offset.zero, radius * 0.8, paint);
+
+    canvas.restore();
+  }
+
+  void _drawText(Canvas canvas, Offset pos, String text, TextStyle style) {
+    final tp = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(canvas, pos - Offset(tp.width / 2, tp.height / 2));
+  }
+
+  @override
+  bool shouldRepaint(_MoodRadialPainter old) => old.rotation != rotation;
 }
