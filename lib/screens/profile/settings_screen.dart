@@ -1,27 +1,58 @@
 // screens/profile/settings_screen.dart
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:path_provider/path_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../services/llm_service.dart';
 import '../../services/lyrics_service.dart';
+import '../../services/metadata_service.dart';
+import '../../services/db_service.dart';
+import '../../models/song.dart';
+import 'package:isar/isar.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../providers/stats_provider.dart';
+import '../../providers/settings_provider.dart';
 
-class SettingsScreen extends StatefulWidget {
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
   @override
-  State<SettingsScreen> createState() => _SettingsScreenState();
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _hasApiKey = false;
   String _modelFilename = 'None';
   bool _isModelLoading = false;
   bool _isPickingModel = false;
 
+  String _username = 'Guest';
+  String? _avatarPath;
+
   @override
   void initState() {
     super.initState();
     _checkApiKey();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      String? path = prefs.getString('avatar_path');
+      // If the file was in cache and got deleted, clear it to prevent errors
+      if (path != null && !File(path).existsSync()) {
+        await prefs.remove('avatar_path');
+        path = null;
+      }
+
+      setState(() {
+        _username = prefs.getString('username') ?? 'Guest';
+        _avatarPath = path;
+      });
+    }
   }
 
   void _checkApiKey() async {
@@ -74,12 +105,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
         }
       } catch (e) {
         if (mounted) {
-          String message = 'Failed to load model: $e';
-          if (e.toString().contains('ENOSPC')) {
+          String message = e.toString().replaceAll('Exception: ', '');
+          if (message.contains('ENOSPC')) {
             message = 'Error: Not enough storage space on device to import model.';
           }
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(message)),
+            SnackBar(
+              content: Text(message),
+              duration: const Duration(seconds: 5),
+              action: SnackBarAction(label: 'OK', onPressed: () {}),
+            ),
           );
         }
       } finally {
@@ -119,7 +154,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel', style: TextStyle(color: BeatSpillTheme.textSecondary)),
+            child: const Text('Cancel', style: TextStyle(color: BopTheme.textSecondary)),
           ),
           TextButton(
             onPressed: () async {
@@ -127,7 +162,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _checkApiKey();
               if (ctx.mounted) Navigator.pop(ctx);
             },
-            child: const Text('Save', style: TextStyle(color: BeatSpillTheme.green)),
+            child: const Text('Save', style: TextStyle(color: BopTheme.green)),
           ),
         ],
       ),
@@ -174,14 +209,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   LinearProgressIndicator(
                     value: total == 0 ? 0 : current / total,
                     backgroundColor: Colors.white24,
-                    color: BeatSpillTheme.green,
+                    color: BopTheme.green,
                   ),
                   const SizedBox(height: 16),
                   Text('$current / $total downloaded', style: const TextStyle(color: Colors.white70)),
                 ] else if (done) ...[
                   const Text('All lyrics are up to date!', style: TextStyle(color: Colors.white70)),
                 ] else ...[
-                  const CircularProgressIndicator(color: BeatSpillTheme.green),
+                  const CircularProgressIndicator(color: BopTheme.green),
                   const SizedBox(height: 16),
                   const Text('Scanning library...', style: TextStyle(color: Colors.white70)),
                 ],
@@ -191,7 +226,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               if (done || total == 0)
                 TextButton(
                   onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Close', style: TextStyle(color: BeatSpillTheme.green)),
+                  child: const Text('Close', style: TextStyle(color: BopTheme.green)),
                 ),
             ],
           );
@@ -200,23 +235,160 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  void _showEditProfileDialog() async {
+    final controller = TextEditingController(text: _username);
+    String? tempAvatar = _avatarPath;
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: const Color(0xFF282828),
+          title: const Text('Edit Profile', style: TextStyle(color: Colors.white)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              InkWell(
+                borderRadius: BorderRadius.circular(40),
+                onTap: () async {
+                  final result = await FilePicker.platform.pickFiles(
+                    type: FileType.image,
+                    withData: true,
+                  );
+                  if (result != null) {
+                    final file = result.files.single;
+                    if (file.path != null) {
+                      setDialogState(() => tempAvatar = file.path);
+                    } else if (file.bytes != null) {
+                      final tempDir = await getTemporaryDirectory();
+                      final tempFile = File('${tempDir.path}/avatar_temp_${DateTime.now().millisecondsSinceEpoch}.png');
+                      await tempFile.writeAsBytes(file.bytes!);
+                      setDialogState(() => tempAvatar = tempFile.path);
+                    }
+                  }
+                },
+                child: CircleAvatar(
+                  radius: 40,
+                  backgroundColor: BopTheme.surfaceAlt,
+                  backgroundImage: tempAvatar != null ? FileImage(File(tempAvatar!)) : null,
+                  child: tempAvatar == null ? const Icon(Icons.add_a_photo, color: Colors.white54) : null,
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: controller,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  labelText: 'Username',
+                  labelStyle: TextStyle(color: Colors.white54),
+                  hintText: 'Enter your name',
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel', style: TextStyle(color: BopTheme.textSecondary)),
+            ),
+            TextButton(
+              onPressed: () async {
+                final prefs = await SharedPreferences.getInstance();
+                final newName = controller.text.trim().isNotEmpty ? controller.text.trim() : 'Guest';
+                await prefs.setString('username', newName);
+                
+                if (tempAvatar != null && tempAvatar != _avatarPath) {
+                  try {
+                    final docDir = await getApplicationDocumentsDirectory();
+                    final savePath = '${docDir.path}/avatar_user.png';
+                    final oldFile = File(savePath);
+                    if (await oldFile.exists()) await oldFile.delete();
+                    await File(tempAvatar!).copy(savePath);
+                    await prefs.setString('avatar_path', savePath);
+                  } catch (e) {
+                    print('Error saving avatar: $e');
+                  }
+                }
+                
+                if (ctx.mounted) Navigator.pop(ctx);
+              },
+              child: const Text('Save', style: TextStyle(color: BopTheme.green)),
+            ),
+          ],
+        ),
+      ),
+    );
+    _loadProfile();
+  }
+
+  Future<void> _fetchAllMissingMetadata() async {
+    final songs = await DbService.instance.isar.songs.where().findAll();
+    final missing = songs.where((s) => 
+      MetadataService.instance.isArtistMissing(s.artist) || 
+      MetadataService.instance.isAlbumMissing(s.album) || 
+      MetadataService.instance.isGenreMissing(s.genre)
+    ).toList();
+
+    if (missing.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('All songs already have metadata!')),
+        );
+      }
+      return;
+    }
+
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Fetching Metadata'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const LinearProgressIndicator(color: BopTheme.green),
+            const SizedBox(height: 16),
+            Text('Processing ${missing.length} songs...'),
+          ],
+        ),
+      ),
+    );
+
+    int count = 0;
+    for (final song in missing) {
+      try {
+        await MetadataService.instance.fetchAndFillMetadata(song);
+        count++;
+        // Respect MusicBrainz rate limit (1 req/sec)
+        await Future.delayed(const Duration(seconds: 1));
+      } catch (_) {}
+    }
+
+    if (mounted) {
+      Navigator.pop(context); // Close dialog
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Successfully updated metadata for $count songs.')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
         children: [
-          // ── Profile tile ──────────────────────────
-          if (false) // Hidden for now
           ListTile(
             leading: CircleAvatar(
               backgroundColor: const Color(0xFF2E8B57),
-              child: const Icon(Icons.person, color: Colors.white, size: 18),
+              backgroundImage: _avatarPath != null ? FileImage(File(_avatarPath!)) : null,
+              child: _avatarPath == null ? const Icon(Icons.person, color: Colors.white, size: 18) : null,
             ),
-            title: const Text('maya'),
-            subtitle: const Text('View Profile'),
-            trailing: const Icon(Icons.chevron_right, color: BeatSpillTheme.textSecondary),
-            onTap: () {},
+            title: Text(_username),
+            subtitle: const Text('Edit Profile'),
+            trailing: const Icon(Icons.chevron_right, color: BopTheme.textSecondary),
+            onTap: _showEditProfileDialog,
           ),
           // const Divider(height: 1),
 
@@ -230,13 +402,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
             'Local Files',
           ].map((label) => _SettingsTile(label: label)),
 
-          const _SectionDivider(label: 'BeatSpill'),
-
-          // ── BeatSpill-specific settings ───────────
+          const _SectionDivider(label: 'Bop'),
+          const SizedBox(height: 12),
+          // ── Bop-specific settings ───────────
           _SettingsTile(
             label: 'Wrapped Cadence',
             trailing: const Text('Monthly',
-                style: TextStyle(color: BeatSpillTheme.green, fontSize: 13)),
+                style: TextStyle(color: BopTheme.green, fontSize: 13)),
             onTap: () {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Wrapped Cadence is currently locked to Monthly for stability.')),
@@ -247,51 +419,87 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _SettingsTile(
             label: 'Cloud Sync',
             trailing: const Text('On',
-                style: TextStyle(color: BeatSpillTheme.green, fontSize: 13)),
+                style: TextStyle(color: BopTheme.green, fontSize: 13)),
           ),
           _SettingsTile(
             label: 'AI Personality & Recap (LMM)',
             trailing: Text(_hasApiKey ? 'Ready' : 'Template Mode',
                 style: TextStyle(
-                    color: _hasApiKey ? BeatSpillTheme.green : BeatSpillTheme.textSecondary,
+                    color: _hasApiKey ? BopTheme.green : BopTheme.textSecondary,
                     fontSize: 13)),
             onTap: _showApiKeyDialog,
           ),
           _SettingsTile(
             label: 'Local AI Model (.gguf)',
+            subtitle: 'Requires GGUF format (e.g. TinyLlama-1.1B)',
             trailing: _isModelLoading
                 ? const SizedBox(
                     width: 16,
                     height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: BeatSpillTheme.green),
+                    child: CircularProgressIndicator(strokeWidth: 2, color: BopTheme.green),
                   )
                 : Text(_modelFilename,
                     style: TextStyle(
                         color: _modelFilename == 'None'
-                            ? BeatSpillTheme.textSecondary
-                            : BeatSpillTheme.green,
+                            ? BopTheme.textSecondary
+                            : BopTheme.green,
                         fontSize: 13)),
             onTap: _pickModel,
           ),
           _SettingsTile(
             label: 'Lyrics Source',
             trailing: const Text('lrclib.net',
-                style: TextStyle(color: BeatSpillTheme.textSecondary, fontSize: 13)),
+                style: TextStyle(color: BopTheme.textSecondary, fontSize: 13)),
           ),
           _SettingsTile(
             label: 'Download Missing Lyrics',
             onTap: () => _showLyricsDownloadDialog(context),
           ),
           _SettingsTile(
+            label: 'Fetch All Missing Metadata',
+            subtitle: 'Auto-fill artist, album, and genre tags',
+            onTap: _fetchAllMissingMetadata,
+          ),
+          
+          const _SectionDivider(label: 'Design & Feel'),
+          SwitchListTile(
+            title: const Text('Bop Bold Rendition', style: TextStyle(fontSize: 14)),
+            subtitle: const Text('Spotify-inspired high-contrast & abstract shapes (BETA)', style: TextStyle(fontSize: 11)),
+            value: ref.watch(boldDesignProvider),
+            activeColor: BopTheme.green,
+            onChanged: (val) {
+              ref.read(boldDesignProvider.notifier).toggle();
+            },
+          ),
+          
+          const _SectionDivider(label: 'Recap Preview (PREVIEW)'),
+          SwitchListTile(
+            title: const Text('Simulate November (Teaser)', style: TextStyle(fontSize: 14)),
+            value: ref.watch(debugDateProvider)?.month == 11,
+            activeColor: BopTheme.green,
+            onChanged: (val) {
+              ref.read(debugDateProvider.notifier).state = val ? DateTime(2026, 11, 15) : null;
+            },
+          ),
+          SwitchListTile(
+            title: const Text('Simulate December (Active)', style: TextStyle(fontSize: 14)),
+            value: ref.watch(debugDateProvider)?.month == 12,
+            activeColor: BopTheme.green,
+            onChanged: (val) {
+              ref.read(debugDateProvider.notifier).state = val ? DateTime(2026, 12, 10) : null;
+            },
+          ),
+
+          _SettingsTile(
             label: 'About',
             onTap: () {
               showAboutDialog(
                 context: context,
-                applicationName: 'BeatSpill',
-                applicationVersion: '1.0.0',
-                applicationIcon: const Icon(Icons.music_note, color: BeatSpillTheme.green),
+                applicationName: 'Bop',
+                applicationVersion: '2.3.0',
+                applicationIcon: const Icon(Icons.music_note, color: BopTheme.green),
                 children: [
-                  const Text('A simple project of mine : Allen Ronn Parado'),
+                  const Text('Bop v2.3.0 - Aquamid.'),
                 ],
               );
             },
@@ -305,16 +513,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
 class _SettingsTile extends StatelessWidget {
   final String label;
+  final String? subtitle;
   final Widget? trailing;
   final VoidCallback? onTap;
-  const _SettingsTile({required this.label, this.trailing, this.onTap});
+  const _SettingsTile({required this.label, this.subtitle, this.trailing, this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return ListTile(
       title: Text(label),
+      subtitle: subtitle != null ? Text(subtitle!, style: const TextStyle(color: BopTheme.textMuted, fontSize: 12)) : null,
       trailing: trailing ??
-          const Icon(Icons.chevron_right, color: BeatSpillTheme.textSecondary),
+          const Icon(Icons.chevron_right, color: BopTheme.textSecondary),
       onTap: onTap ?? () {},
     );
   }
@@ -332,7 +542,7 @@ class _SectionDivider extends StatelessWidget {
           style: Theme.of(context)
               .textTheme
               .labelSmall
-              ?.copyWith(color: BeatSpillTheme.textMuted)),
+              ?.copyWith(color: BopTheme.textMuted)),
     );
   }
 }

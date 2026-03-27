@@ -32,6 +32,7 @@ class WrappedReport {
 
   // LLM-generated recap paragraph
   String llmRecap = '';
+  bool isAiGenerated = false;
 
   // Slide cards serialized as JSON for replay
   String slidesJsonStr = '';

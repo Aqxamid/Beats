@@ -55,7 +55,7 @@ class GuestNoticeScreen extends StatelessWidget {
                 },
                 child: Text(
                   'Stay as guest →',
-                  style: TextStyle(color: BeatSpillTheme.textSecondary),
+                  style: TextStyle(color: BopTheme.textSecondary),
                 ),
               ),
             ],

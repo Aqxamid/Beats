@@ -13,6 +13,8 @@ import 'package:path_provider/path_provider.dart';
 import '../models/song.dart';
 import '../models/play_event.dart';
 import '../services/db_service.dart';
+import '../services/metadata_service.dart';
+import '../services/llm_service.dart';
 import 'stats_provider.dart';
 
 // ── Player state ──────────────────────────────────────────────
@@ -27,6 +29,7 @@ class PlayerState {
   final int currentIndex;
   final bool shuffleEnabled;
   final PlayerRepeatMode repeatMode;
+  final String? djTransitionMsg;
 
   const PlayerState({
     this.currentSong,
@@ -37,6 +40,7 @@ class PlayerState {
     this.currentIndex = 0,
     this.shuffleEnabled = false,
     this.repeatMode = PlayerRepeatMode.off,
+    this.djTransitionMsg,
   });
 
   PlayerState copyWith({
@@ -48,6 +52,8 @@ class PlayerState {
     int? currentIndex,
     bool? shuffleEnabled,
     PlayerRepeatMode? repeatMode,
+    String? djTransitionMsg,
+    bool clearDjMsg = false,
   }) {
     return PlayerState(
       currentSong: currentSong ?? this.currentSong,
@@ -58,18 +64,19 @@ class PlayerState {
       currentIndex: currentIndex ?? this.currentIndex,
       shuffleEnabled: shuffleEnabled ?? this.shuffleEnabled,
       repeatMode: repeatMode ?? this.repeatMode,
+      djTransitionMsg: clearDjMsg ? null : (djTransitionMsg ?? this.djTransitionMsg),
     );
   }
 }
 
 // ── AudioHandler for system media notifications ──────────────
-class BeatSpillAudioHandler extends BaseAudioHandler with SeekHandler {
+class BopAudioHandler extends BaseAudioHandler with SeekHandler {
   final AudioPlayer _player = AudioPlayer();
 
   // Expose the underlying player so the notifier can observe streams
   AudioPlayer get player => _player;
 
-  BeatSpillAudioHandler() {
+  BopAudioHandler() {
     // Broadcast player state to system notification
     _player.playbackEventStream.map(_transformEvent).pipe(playbackState);
   }
@@ -167,14 +174,14 @@ class BeatSpillAudioHandler extends BaseAudioHandler with SeekHandler {
 }
 
 // ── Global audio handler ─────────────────────────────────────
-late BeatSpillAudioHandler audioHandler;
+late BopAudioHandler audioHandler;
 
 Future<void> initAudioService() async {
   audioHandler = await AudioService.init(
-    builder: () => BeatSpillAudioHandler(),
+    builder: () => BopAudioHandler(),
     config: const AudioServiceConfig(
-      androidNotificationChannelId: 'com.beatspill.audio',
-      androidNotificationChannelName: 'BeatSpill',
+      androidNotificationChannelId: 'com.bop.audio',
+      androidNotificationChannelName: 'Bop',
       androidNotificationOngoing: true,
       androidStopForegroundOnPause: true,
       androidNotificationIcon: 'mipmap/ic_launcher',
@@ -243,7 +250,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     await _finalizeCurrentPlayEvent(skipped: false);
 
     try {
-      await _player.setFilePath(song.filePath);
+      if (song.uri != null && song.uri!.startsWith('content://')) {
+        await _player.setAudioSource(AudioSource.uri(Uri.parse(song.uri!)));
+      } else {
+        await _player.setFilePath(song.filePath);
+      }
+      
       state = state.copyWith(
         currentSong: song,
         position: Duration.zero,
@@ -255,6 +267,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       await audioHandler.updateSongNotification(song);
     } catch (e) {
       // File may not exist or format unsupported — skip silently
+      print('[Player] Playback error: $e');
     }
   }
 
@@ -289,6 +302,13 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     }
   }
 
+  Future<void> skipTo(int index) async {
+    if (index >= 0 && index < state.queue.length) {
+      state = state.copyWith(currentIndex: index);
+      await play(state.queue[index]);
+    }
+  }
+
   // ── Skip ──────────────────────────────────────────────────
   Future<void> skipNext() async {
     final wasSkipped = _isSkippedEarly();
@@ -302,11 +322,23 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       if (state.repeatMode == PlayerRepeatMode.all) {
         nextIndex = 0;
       } else {
+        // AI DJ Infinite Queue implementation
+        if (state.currentSong != null) {
+          final vibeResult = await LlmService.instance.generateNextVibeSong(state.currentSong!);
+          if (vibeResult != null) {
+             final nextSong = vibeResult.key;
+             final transition = vibeResult.value;
+             final newQueue = List<Song>.from(state.queue)..add(nextSong);
+             state = state.copyWith(queue: newQueue, currentIndex: nextIndex, djTransitionMsg: transition);
+             await play(nextSong);
+             return;
+          }
+        }
         return; // End of queue
       }
     }
 
-    state = state.copyWith(currentIndex: nextIndex);
+    state = state.copyWith(currentIndex: nextIndex, clearDjMsg: true);
     await play(state.queue[nextIndex]);
   }
 
@@ -431,18 +463,21 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       // Replay same track
       await _player.seek(Duration.zero);
       await _player.play();
-      if (state.currentSong != null) {
-        await _logPlayEvent(state.currentSong!);
-      }
       return;
     }
 
-    await skipNext();
+    if (state.currentIndex < state.queue.length - 1) {
+      await skipNext();
+    }
   }
 
   // ── PlayEvent logging ─────────────────────────────────────
   Future<void> _logPlayEvent(Song song) async {
     _playStartTime = DateTime.now();
+    
+    // Perform metadata fetch in BACKGROUND - don't await it to prevent playback lag
+    unawaited(_backgroundMetadataUpdate(song));
+
     final event = PlayEvent()
       ..songTitle = song.title
       ..artist = song.artist
@@ -451,7 +486,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
     await _db.isar.writeTxn(() async {
       _currentPlayEventId = await _db.playEvents.put(event);
-      // Also link the song
       event.song.value = song;
       await event.song.save();
     });
@@ -462,6 +496,24 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     await _db.isar.writeTxn(() async {
       await _db.songs.put(song);
     });
+  }
+
+  Future<void> _backgroundMetadataUpdate(Song song) async {
+    if (song.genre == 'Unknown' || song.artist == 'Unknown Artist' || song.album == 'Unknown Album') {
+      try {
+        final updated = await MetadataService.instance.fetchAndFillMetadata(song);
+        if (updated && mounted) {
+          // Success! Refresh providers to show new info in UI
+          ref.invalidate(recentSongsProvider);
+          ref.invalidate(genreBreakdownProvider);
+          ref.invalidate(topArtistsProvider);
+          ref.invalidate(minutesProvider);
+          ref.invalidate(allSongsProvider);
+        }
+      } catch (e) {
+        print('[Player] Background metadata fetch failed: $e');
+      }
+    }
   }
 
   Future<void> _updateListenedMs() async {

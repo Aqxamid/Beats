@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/app_theme.dart';
 import '../../models/song.dart';
 import '../../services/db_service.dart';
+import '../../services/metadata_service.dart';
 import '../../providers/stats_provider.dart';
 
 class MetadataEditorScreen extends ConsumerStatefulWidget {
@@ -38,6 +39,31 @@ class _MetadataEditorScreenState extends ConsumerState<MetadataEditorScreen> {
     super.dispose();
   }
 
+  bool _isFetching = false;
+
+  Future<void> _autoFetch() async {
+    setState(() => _isFetching = true);
+    
+    // The service only edits memory fields that were strictly empty or unknown
+    final success = await MetadataService.instance.fetchAndFillMetadata(widget.song);
+    
+    if (mounted) {
+      setState(() {
+        _isFetching = false;
+        if (success) {
+          _titleController.text = widget.song.title;
+          _artistController.text = widget.song.artist;
+          _albumController.text = widget.song.album;
+          _genreController.text = widget.song.genre;
+        }
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(success ? 'Missing metadata imported!' : 'No new metadata found.')),
+      );
+    }
+  }
+
   Future<void> _save() async {
     final updatedSong = widget.song;
     updatedSong.title = _titleController.text.trim();
@@ -60,15 +86,28 @@ class _MetadataEditorScreenState extends ConsumerState<MetadataEditorScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: BeatSpillTheme.background,
+      backgroundColor: BopTheme.background,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: const Text('Edit Song Info', style: TextStyle(fontSize: 18)),
         actions: [
+          if (_isFetching)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: BopTheme.green)),
+              ),
+            )
+          else
+            IconButton(
+              icon: const Icon(Icons.auto_awesome, color: BopTheme.green),
+              tooltip: 'Auto-Fetch Missing Data',
+              onPressed: _autoFetch,
+            ),
           TextButton(
             onPressed: _save,
-            child: const Text('Save', style: TextStyle(color: BeatSpillTheme.green, fontWeight: FontWeight.bold)),
+            child: const Text('Save', style: TextStyle(color: BopTheme.green, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -93,13 +132,13 @@ class _MetadataEditorScreenState extends ConsumerState<MetadataEditorScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(color: BeatSpillTheme.textSecondary, fontSize: 12)),
+        Text(label, style: const TextStyle(color: BopTheme.textSecondary, fontSize: 12)),
         TextField(
           controller: controller,
           style: const TextStyle(color: Colors.white),
           decoration: const InputDecoration(
             enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white12)),
-            focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: BeatSpillTheme.green)),
+            focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: BopTheme.green)),
           ),
         ),
       ],

@@ -22,9 +22,9 @@ Future<Color> _extractDominantColor(List<int> artBytes) async {
       maximumColorCount: 6,
       size: const Size(50, 50),
     );
-    return palette.dominantColor?.color ?? BeatSpillTheme.surface;
+    return palette.dominantColor?.color ?? BopTheme.surface;
   } catch (_) {
-    return BeatSpillTheme.surface;
+    return BopTheme.surface;
   }
 }
 
@@ -36,7 +36,7 @@ class MiniPlayer extends ConsumerStatefulWidget {
 }
 
 class _MiniPlayerState extends ConsumerState<MiniPlayer> {
-  Color _dominantColor = BeatSpillTheme.surface;
+  Color _dominantColor = BopTheme.surface;
 
   int? _lastSongId;
 
@@ -82,31 +82,33 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
           );
         }
       },
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => NowPlayingScreen(song: song),
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => NowPlayingScreen(song: song),
+            ),
+          );
+        },
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            gradient: LinearGradient(
+              colors: [
+                _dominantColor.withOpacity(0.85),
+                _dominantColor.withOpacity(0.4),
+                BopTheme.surface.withOpacity(0.95),
+              ],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+            ),
           ),
-        );
-      },
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
-          gradient: LinearGradient(
-            colors: [
-              _dominantColor.withOpacity(0.85),
-              _dominantColor.withOpacity(0.4),
-              BeatSpillTheme.surface.withOpacity(0.95),
-            ],
-            begin: Alignment.centerLeft,
-            end: Alignment.centerRight,
-          ),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 8, 8, 6),
@@ -122,6 +124,8 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                           ? Image.memory(
                               Uint8List.fromList(song.artBytes!),
                               key: ValueKey('mini_art_${song.id}'),
+                              cacheWidth: 84, // 42 * devicePixelRatio (approx 2.0)
+                              cacheHeight: 84,
                               fit: BoxFit.cover,
                               gaplessPlayback: true,
                             )
@@ -154,12 +158,12 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                             delayBefore: const Duration(seconds: 2),
                             pauseBetween: const Duration(seconds: 2),
                             style: const TextStyle(
-                                color: BeatSpillTheme.textPrimary,
+                                color: BopTheme.textPrimary,
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600)),
                         Text(song.artist,
                             style: const TextStyle(
-                                color: BeatSpillTheme.textSecondary,
+                                color: BopTheme.textSecondary,
                                 fontSize: 10)),
                       ],
                     ),
@@ -174,7 +178,7 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                       child: Icon(
                         playerState.isPlaying ? Icons.pause : Icons.play_arrow,
                         key: ValueKey(playerState.isPlaying),
-                        color: BeatSpillTheme.textPrimary,
+                        color: BopTheme.textPrimary,
                       ),
                     ),
                     onPressed: () {
@@ -185,7 +189,7 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                   // Skip next
                   IconButton(
                     icon: const Icon(Icons.skip_next,
-                        color: BeatSpillTheme.textSecondary),
+                        color: BopTheme.textSecondary),
                     onPressed: () {
                       ref.read(playerProvider.notifier).skipNext();
                     },
@@ -203,11 +207,12 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                 minHeight: 2.5,
                 backgroundColor: Colors.white.withOpacity(0.1),
                 valueColor:
-                    const AlwaysStoppedAnimation<Color>(BeatSpillTheme.green),
+                    const AlwaysStoppedAnimation<Color>(BopTheme.green),
               ),
             ),
           ],
         ),
+      ),
       ),
     );
   }

@@ -3,9 +3,23 @@
 // Attempts to use fllama (TinyLlama GGUF) if a model file exists on-device.
 // Falls back to smart template-based generation (no external API calls).
 import 'dart:io';
+import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:llama_cpp_dart/llama_cpp_dart.dart';
+import 'package:http/http.dart' as http;
+import 'package:isar/isar.dart';
+import '../models/song.dart';
 import '../models/wrapped_report.dart';
+import 'db_service.dart';
+import 'lyrics_service.dart';
+
+class SmartPlaylistData {
+  final String name;
+  final List<Song> songs;
+  final bool isAiGenerated;
+  SmartPlaylistData({required this.name, required this.songs, this.isAiGenerated = false});
+}
 
 class LlmService {
   LlmService._();
@@ -18,6 +32,10 @@ class LlmService {
   String _modelPath = '';
   bool _modelAvailable = false;
   Llama? _llama;
+  
+  // Caching
+  List<SmartPlaylistData>? _cachedPlaylists;
+  DateTime? _lastPlaylistUpdate;
 
   /// Get current API key (for settings screen compatibility)
   Future<String> get currentApiKey async {
@@ -55,56 +73,341 @@ class LlmService {
     final path = modelPath ?? await currentModelPath;
     if (path.isEmpty) return;
 
-    if (!await File(path).exists()) {
+    File modelFile = File(path);
+    if (!await modelFile.exists()) {
       _modelAvailable = false;
       return;
     }
 
+    // Android specific: FilePicker often returns content URIs or temporary paths.
+    // Native LLM libraries (llama_cpp) need a direct, persistent file path.
+    // We copy the file to the app's internal documents directory.
+    if (path.contains('/cache/') || path.contains('/com.android.providers')) {
+       try {
+         print('[LLM] Copying model to internal storage for persistence...');
+         final docDir = await getApplicationDocumentsDirectory();
+         final newPath = '${docDir.path}/model.gguf';
+         final newFile = File(newPath);
+         
+         if (await newFile.exists()) await newFile.delete();
+         await modelFile.copy(newPath);
+         
+         modelFile = newFile;
+         await updateModelPath(newPath);
+         print('[LLM] Model copied to: $newPath');
+       } catch (e) {
+         print('[LLM] Failed to copy model: $e');
+         throw Exception('Failed to copy model to internal storage: $e');
+       }
+    }
+
+    // Dispose old model before loading new one to free RAM
+    disposeModel();
+
     try {
-      // llama_cpp_dart 0.1.2 constructor: Llama(modelPath, modelParams, [contextParams])
-      _llama = Llama(path, ModelParams(), ContextParams());
+      print('[LLM] Attempting to load model from: ${modelFile.path}');
+      _llama = Llama(modelFile.path, ModelParams(), ContextParams());
       _modelAvailable = _llama != null;
-      _modelPath = path;
+      _modelPath = modelFile.path;
+      print('[LLM] Model loaded successfully: $_modelAvailable');
     } catch (e) {
+      final errorStr = e.toString();
+      String userMessage = errorStr;
+      
+      if (errorStr.contains('libllama.so') || errorStr.contains('dlopen failed')) {
+        // ... (existing architecture error handling)
+        final arch = Platform.operatingSystemVersion.toLowerCase();
+        userMessage = 'Native library (libllama.so) not compatible or missing. ';
+        if (arch.contains('x86_64')) {
+          userMessage += 'Emulators (x86_64) are often unsupported by GGUF libraries. Please use a physical ARM64 device.';
+        } else {
+          userMessage += 'Your device architecture might not be supported.';
+        }
+      }
+      
+      print('[LLM] Error loading model: $userMessage');
       _modelAvailable = false;
+      throw Exception(userMessage);
+    }
+  }
+
+  /// Explicitly free up RAM used by the GGUF model
+  void disposeModel() {
+    try {
+      if (_llama != null) {
+        print('[LLM] Disposing existing model...');
+        _llama!.dispose(); // Correct method for llama_cpp_dart
+        _llama = null;
+        _modelAvailable = false;
+      }
+    } catch (e) {
+      print('[LLM] Error disposing model: $e');
     }
   }
 
   /// Generate a Wrapped recap paragraph for [report].
-  /// Tries the real model first, falls back to templates.
+  /// Tries the real model first, then Gemini API (if key exists), then falls back to templates.
   Future<String> generateWrappedRecap(WrappedReport report) async {
+    // 1. Prioritize Cached Recap
+    if (report.llmRecap.isNotEmpty) {
+      print('[LLM] Using cached recap for ${report.periodLabel}');
+      return report.llmRecap;
+    }
+
+    String? lyricsSnippet;
+    try {
+      final db = DbService.instance;
+      final song = await db.songs.filter().titleEqualTo(report.topSong).isHiddenEqualTo(false).findFirst();
+      if (song != null) {
+        final lyrics = await LyricsService.instance.fetchLyrics(song);
+        if (lyrics != null && lyrics.isNotEmpty) {
+           lyricsSnippet = lyrics.replaceAll(RegExp(r'\[.*?\]'), ' ').trim();
+           if (lyricsSnippet.length > 200) lyricsSnippet = lyricsSnippet.substring(0, 200);
+        }
+      }
+    } catch (_) {}
+
+    final prompt = _buildPrompt(report, lyricsSnippet);
+
+    // 2. Try Local Model (GGUF)
     if (_modelAvailable && _llama != null) {
       try {
-        final prompt = _buildPrompt(report);
-        // Using common prompt template for chat models
+        print('[LLM] Generating via Local GGUF...');
         final fullPrompt = "<s>[INST] $prompt [/INST]";
-        
-        // Correct 0.1.2+1 usage: setPrompt then generate
         _llama!.setPrompt(fullPrompt);
         final response = await _llama!.generateCompleteText(maxTokens: 128);
 
-        if (response.isNotEmpty) return response.trim();
+        if (response.isNotEmpty) {
+          return _saveAndReturnRecap(report, response.trim());
+        }
       } catch (e) {
-        // Fallback to templates below
+        print('[LLM] Local generation error: $e');
       }
     }
 
-    try {
-      return _generateLocal(report);
-    } catch (e) {
-      return 'You had an amazing ${report.periodLabel}! '
-          '${report.topArtist} was your top artist with ${report.topArtistPlays} plays.';
+    // 3. Try Gemini API (if API Key provided)
+    final apiKey = await currentApiKey;
+    if (apiKey.isNotEmpty) {
+      try {
+        print('[LLM] Generating via Gemini API...');
+        final url = Uri.parse('https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=$apiKey');
+        final response = await http.post(
+          url,
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'contents': [{
+              'parts': [{'text': prompt}]
+            }],
+            'generationConfig': {
+              'maxOutputTokens': 128,
+              'temperature': 0.7,
+            }
+          }),
+        );
+
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          final text = data['candidates'][0]['content']['parts'][0]['text'] as String;
+          return _saveAndReturnRecap(report, text.trim());
+        } else {
+          print('[LLM] Gemini API error: ${response.statusCode} - ${response.body}');
+        }
+      } catch (e) {
+        print('[LLM] Gemini generation error: $e');
+      }
     }
+
+    // 4. Fallback to Templates
+    print('[LLM] Falling back to templates.');
+    report.isAiGenerated = false;
+    await DbService.instance.isar.writeTxn(() async {
+      await DbService.instance.wrappedReports.put(report);
+    });
+    return _generateLocal(report);
   }
 
-  String _buildPrompt(WrappedReport report) {
-    return "Write a short, punchy, personality-driven 2-sentence summary of my music taste for this ${report.periodLabel}. "
+  Future<String> _saveAndReturnRecap(WrappedReport report, String result) async {
+    print('[LLM] Generation success!');
+    report.llmRecap = result;
+    report.isAiGenerated = true;
+    await DbService.instance.isar.writeTxn(() async {
+      await DbService.instance.wrappedReports.put(report);
+    });
+    return result;
+  }
+
+  String _buildPrompt(WrappedReport report, String? lyricsSnippet) {
+    String topGenres = '';
+    try {
+      final Map<String, dynamic> genres = jsonDecode(report.genreJsonStr);
+      final sorted = genres.entries.toList()..sort((a, b) => (b.value as int).compareTo(a.value as int));
+      topGenres = sorted.take(3).map((e) => e.key).join(', ');
+    } catch (_) {}
+
+    String prompt = "Write a short, punchy, personality-driven 2-sentence summary of my music taste for this ${report.periodLabel}. "
+        "Top genres and mood: $topGenres. "
         "Top artist: ${report.topArtist} (${report.topArtistPlays} plays). "
-        "Total minutes: ${report.totalMinutes}. "
         "Peak hour: ${report.peakHourLabel}. "
         "Personality type: ${report.personalityType}. "
-        "Listening streak: ${report.streakDays} days. "
-        "Be casual and use modern lingo.";
+        "Listening streak: ${report.streakDays} days. ";
+
+    if (lyricsSnippet != null && lyricsSnippet.isNotEmpty) {
+       prompt += "My top song is '${report.topSong}', here are some lyrics: \"$lyricsSnippet\". Reference them creatively! ";
+    }
+
+    prompt += "Focus heavily on the mood and genres rather than pure listening timeframe. Be casual and use modern lingo.";
+    return prompt;
+  }
+
+  Future<List<SmartPlaylistData>> generateSmartPlaylists() async {
+    // Return cache if it's less than 30 mins old
+    if (_cachedPlaylists != null && 
+        _lastPlaylistUpdate != null && 
+        DateTime.now().difference(_lastPlaylistUpdate!).inMinutes < 30) {
+      return _cachedPlaylists!;
+    }
+
+    final db = DbService.instance;
+    final allSongs = await db.songs.where().filter().isHiddenEqualTo(false).findAll();
+    if (allSongs.isEmpty) return [];
+
+    final genreMap = <String, List<Song>>{};
+    final artistMap = <String, List<Song>>{};
+    
+    for (var s in allSongs) {
+      final normalizedGenre = s.genre.trim().split(' ').map((word) => word.isEmpty ? '' : word[0].toUpperCase() + word.substring(1).toLowerCase()).join(' ');
+      if (normalizedGenre.isNotEmpty && normalizedGenre != 'Unknown' && normalizedGenre != '<unknown>') {
+        genreMap.putIfAbsent(normalizedGenre, () => []).add(s);
+      }
+      
+      final normalizedArtist = s.artist.trim().split(' ').map((word) => word.isEmpty ? '' : word[0].toUpperCase() + word.substring(1).toLowerCase()).join(' ');
+      if (normalizedArtist.isNotEmpty && normalizedArtist != 'Unknown Artist' && normalizedArtist != 'Unknown') {
+        artistMap.putIfAbsent(normalizedArtist, () => []).add(s);
+      }
+    }
+
+    final sortedGenres = genreMap.entries.toList()..sort((a, b) => b.value.length.compareTo(a.value.length));
+    final sortedArtists = artistMap.entries.toList()..sort((a, b) => b.value.length.compareTo(a.value.length));
+    
+    final fallbacks = {
+      'Rock': 'Electric Reverie',
+      'Pop': 'Bubblegum Crisis',
+      'Jazz': 'Midnight Noir',
+      'Hip Hop': 'Concrete Jungle',
+      'Chill': 'Cloud Nine',
+      'Classical': 'Eternal Echoes',
+      'Country': 'Dusty Roads',
+      'Electronic': 'Neon Dreams',
+    };
+
+    final result = <SmartPlaylistData>[];
+    
+    // 1. Try Genre-based playlists
+    for (var i = 0; i < sortedGenres.length && i < 3; i++) {
+        final genre = sortedGenres[i].key;
+        final songs = sortedGenres[i].value;
+        if (songs.length < 3) continue;
+
+        String name = fallbacks[genre] ?? '$genre Vibes';
+        bool isAi = false;
+
+        if (_modelAvailable && _llama != null) {
+          try {
+            final prompt = "Give me one highly creative, catchy, and twisty name for a playlist featuring $genre music. Return ONLY the name. No quotes or intro.";
+            _llama!.setPrompt("<s>[INST] $prompt [/INST]");
+            final response = await _llama!.generateCompleteText(maxTokens: 32);
+            if (response.isNotEmpty) {
+               name = response.trim().replaceAll('"', '');
+               isAi = true;
+            }
+          } catch (_) {}
+        }
+        
+        result.add(SmartPlaylistData(name: name, songs: songs, isAiGenerated: isAi));
+    }
+
+    // 2. "The Vault" (Old favorites - played many times but not recently)
+    final vaultSongs = allSongs.where((s) => s.playCount > 5 && (s.lastPlayedAt == null || DateTime.now().difference(s.lastPlayedAt!).inDays > 7)).toList();
+    if (vaultSongs.isNotEmpty) {
+      result.add(SmartPlaylistData(
+        name: 'The Vault', 
+        songs: (vaultSongs..shuffle()).take(15).toList(),
+        isAiGenerated: false,
+      ));
+    }
+
+    // 3. "Discovery" (Unused songs)
+    final discoverySongs = allSongs.where((s) => s.playCount <= 1).toList();
+    if (discoverySongs.isNotEmpty) {
+      result.add(SmartPlaylistData(
+        name: 'Discovery Lane', 
+        songs: (discoverySongs..shuffle()).take(15).toList(),
+        isAiGenerated: false,
+      ));
+    }
+
+    // Fallback: Mixed Mix
+    if (result.length < 2 && allSongs.isNotEmpty) {
+      final mixed = List<Song>.from(allSongs)..shuffle();
+      result.add(SmartPlaylistData(
+        name: 'The Daily Mix: Reloaded', 
+        songs: mixed.take(20).toList(),
+        isAiGenerated: false,
+      ));
+    }
+
+    _cachedPlaylists = result;
+    _lastPlaylistUpdate = DateTime.now();
+    return result;
+  }
+
+  Future<MapEntry<Song, String>?> generateNextVibeSong(Song currentSong) async {
+    final db = DbService.instance;
+    final allSongs = await db.songs.where().filter().isHiddenEqualTo(false).findAll();
+    if (allSongs.isEmpty) return null;
+
+    var candidates = allSongs.where((s) => s.id != currentSong.id && (s.genre == currentSong.genre || s.artist == currentSong.artist)).toList();
+    if (candidates.isEmpty) {
+      candidates = allSongs.where((s) => s.id != currentSong.id).toList();
+    }
+    if (candidates.isEmpty) return null;
+
+    candidates.shuffle();
+    final nextSong = candidates.first;
+
+    String transition = "Up next: ${nextSong.title}";
+
+    if (_modelAvailable && _llama != null) {
+      try {
+        final prompt = "You are a fun music DJ. The current song is '${currentSong.title}' by ${currentSong.artist}. The next song is '${nextSong.title}' by ${nextSong.artist}. Write a super short 1-sentence DJ voiceover introducing the next song.";
+        print('[LLM] Generating AI DJ Transition...');
+        // Removed prompt logging for production privacy
+
+        
+        final fullPrompt = "<s>[INST] $prompt [/INST]";
+        _llama!.setPrompt(fullPrompt);
+        final response = await _llama!.generateCompleteText(maxTokens: 64);
+        if (response.isNotEmpty) {
+           transition = response.trim().replaceAll('"', '');
+           print('[LLM] Generated DJ Intro: $transition');
+        }
+      } catch (e) {
+        print('[LLM] AI DJ generation error: $e');
+      }
+    } else {
+      print('[LLM] AI DJ skipping LLM (Model not available). Using templates.');
+      final templates = [
+        "Keeping the vibes flowing, here's ${nextSong.title} by ${nextSong.artist}.",
+        "That was ${currentSong.title}. Now let's jump into ${nextSong.title}.",
+        "You're locked in. Up next is ${nextSong.artist} with ${nextSong.title}.",
+        "Don't touch that dial, we're jumping straight into ${nextSong.title}.",
+        "Next track coming right up: ${nextSong.title}."
+      ];
+      templates.shuffle();
+      transition = templates.first;
+    }
+
+    return MapEntry(nextSong, transition);
   }
 
   // ── Local template-based generator ──────────────────────────

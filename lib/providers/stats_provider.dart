@@ -6,11 +6,15 @@ import '../services/db_service.dart';
 import '../services/lyrics_service.dart';
 import '../services/discovery_service.dart';
 import '../models/song.dart';
+import '../services/llm_service.dart';
 
 // ── Period state ─────────────────────────────────────────────
 enum StatsPeriod { week, month, quarter, allTime }
 
 final statsPeriodProvider = StateProvider<StatsPeriod>((ref) => StatsPeriod.month);
+
+/// DEBUG: Allows mocking the date to test November/December Recap cards.
+final debugDateProvider = StateProvider<DateTime?>((ref) => null);
 
 // Helper to calculate date range based on period
 (DateTime, DateTime) _getRange(StatsPeriod period) {
@@ -117,5 +121,11 @@ final lyricsProvider = FutureProvider.family<String?, Song>((ref, song) async {
 // ── Editor's picks ───────────────────────────────────────────
 final editorPicksProvider = FutureProvider<List<Song>>((ref) async {
   return DiscoveryService.instance.getEditorPicks();
+});
+
+// ── AI Curated Playlists ─────────────────────────────────────
+final aiPlaylistsProvider = FutureProvider<List<SmartPlaylistData>>((ref) async {
+  ref.keepAlive(); // Keep the AI playlists in memory to prevent flickering
+  return LlmService.instance.generateSmartPlaylists();
 });
 

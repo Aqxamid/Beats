@@ -17,7 +17,7 @@ class LikedSongsScreen extends ConsumerWidget {
     final likedSongs = ref.watch(likedSongsProvider);
 
     return Scaffold(
-      backgroundColor: BeatSpillTheme.background,
+      backgroundColor: BopTheme.background,
       appBar: AppBar(
         title: const Text('Liked Songs', style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent,
@@ -33,7 +33,7 @@ class LikedSongsScreen extends ConsumerWidget {
                     return const Center(
                       child: Text(
                         'No liked songs yet.',
-                        style: TextStyle(color: BeatSpillTheme.textMuted),
+                        style: TextStyle(color: BopTheme.textMuted),
                       ),
                     );
                   }
@@ -73,21 +73,21 @@ class LikedSongsScreen extends ConsumerWidget {
                         ),
                         title: Text(song.title,
                             style: const TextStyle(
-                                color: BeatSpillTheme.textPrimary,
+                                color: BopTheme.textPrimary,
                                 fontWeight: FontWeight.w600,
                                 fontSize: 13),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis),
                         subtitle: Text(song.artist,
                             style: const TextStyle(
-                                color: BeatSpillTheme.textSecondary, fontSize: 11)),
+                                color: BopTheme.textSecondary, fontSize: 11)),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
                               icon: Icon(
                                 song.isLiked ? Icons.favorite : Icons.favorite_border,
-                                color: song.isLiked ? BeatSpillTheme.green : BeatSpillTheme.textSecondary,
+                                color: song.isLiked ? BopTheme.green : BopTheme.textSecondary,
                                 size: 20,
                               ),
                               onPressed: () async {

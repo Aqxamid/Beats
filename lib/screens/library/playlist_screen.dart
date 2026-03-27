@@ -96,7 +96,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen>
     }
 
     return Scaffold(
-      backgroundColor: BeatSpillTheme.background,
+      backgroundColor: BopTheme.background,
       body: Column(
         children: [
           Expanded(
@@ -107,7 +107,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen>
                   child: Container(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [_dominantColor, BeatSpillTheme.background],
+                        colors: [_dominantColor, BopTheme.background],
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                       ),
@@ -167,7 +167,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen>
                           const Text(
                             'Playlist',
                             style: TextStyle(
-                              color: BeatSpillTheme.textSecondary,
+                              color: BopTheme.textSecondary,
                               fontSize: 13,
                             ),
                           ),
@@ -175,7 +175,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen>
                           Text(
                             '${playlistSongs.length} songs',
                             style: const TextStyle(
-                              color: BeatSpillTheme.textMuted,
+                              color: BopTheme.textMuted,
                               fontSize: 11,
                             ),
                           ),
@@ -186,7 +186,8 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen>
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.start,
                               children: [
-                                GestureDetector(
+                                InkWell(
+                                  borderRadius: BorderRadius.circular(24),
                                   onTap: () {
                                     if (isPlaylistPlaying) {
                                       ref.read(playerProvider.notifier).togglePlayPause();
@@ -200,7 +201,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen>
                                     width: 48,
                                     height: 48,
                                     decoration: const BoxDecoration(
-                                      color: BeatSpillTheme.green,
+                                      color: BopTheme.green,
                                       shape: BoxShape.circle,
                                     ),
                                     child: Center(
@@ -237,14 +238,14 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen>
                           child: Center(
                             child: isPlaying && playerState.isPlaying
                                 ? const AnimatedEqualizer(
-                                    color: BeatSpillTheme.green, size: 18)
+                                    color: BopTheme.green, size: 18)
                                 : isPlaying
                                     ? const Icon(Icons.equalizer,
-                                        color: BeatSpillTheme.green, size: 18)
+                                        color: BopTheme.green, size: 18)
                                     : Text(
                                         '${index + 1}',
                                         style: const TextStyle(
-                                          color: BeatSpillTheme.textMuted,
+                                          color: BopTheme.textMuted,
                                           fontSize: 13,
                                         ),
                                       ),
@@ -254,8 +255,8 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen>
                           song.title,
                           style: TextStyle(
                             color: isPlaying
-                                ? BeatSpillTheme.green
-                                : BeatSpillTheme.textPrimary,
+                                ? BopTheme.green
+                                : BopTheme.textPrimary,
                             fontWeight: FontWeight.w600,
                             fontSize: 14,
                           ),
@@ -265,7 +266,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen>
                         subtitle: Text(
                           song.artist,
                           style: const TextStyle(
-                            color: BeatSpillTheme.textSecondary,
+                            color: BopTheme.textSecondary,
                             fontSize: 11,
                           ),
                         ),

@@ -31,7 +31,7 @@ class PlaylistSelector extends ConsumerWidget {
               style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
           ListTile(
-            leading: const Icon(Icons.add, color: BeatSpillTheme.green),
+            leading: const Icon(Icons.add, color: BopTheme.green),
             title: const Text('Create New Playlist', style: TextStyle(color: Colors.white)),
             onTap: () => _showCreatePlaylistDialog(context),
           ),
@@ -43,7 +43,7 @@ class PlaylistSelector extends ConsumerWidget {
                 itemBuilder: (context, index) {
                   final p = list[index];
                   return ListTile(
-                    leading: const Icon(Icons.playlist_play, color: BeatSpillTheme.textSecondary),
+                    leading: const Icon(Icons.playlist_play, color: BopTheme.textSecondary),
                     title: Text(p.name, style: const TextStyle(color: Colors.white)),
                     onTap: () async {
                       await DbService.instance.addSongToPlaylist(p.id, song.id);
@@ -91,7 +91,7 @@ class PlaylistSelector extends ConsumerWidget {
                 Navigator.pop(context);
               }
             },
-            child: const Text('Create', style: TextStyle(color: BeatSpillTheme.green)),
+            child: const Text('Create', style: TextStyle(color: BopTheme.green)),
           ),
         ],
       ),

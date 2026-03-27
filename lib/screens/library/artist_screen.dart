@@ -1,6 +1,3 @@
-// screens/library/album_screen.dart
-// Full album detail screen — shows album art, metadata, and all songs.
-// Uses cover art color extraction for gradient, animated play button, animated equalizer.
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,21 +10,19 @@ import '../../widgets/mini_player.dart';
 import '../../widgets/animated_equalizer.dart';
 import '../player/now_playing_screen.dart';
 
-class AlbumScreen extends ConsumerStatefulWidget {
-  final String albumName;
-  final String artist;
+class ArtistScreen extends ConsumerStatefulWidget {
+  final String artistName;
 
-  const AlbumScreen({
+  const ArtistScreen({
     super.key,
-    required this.albumName,
-    required this.artist,
+    required this.artistName,
   });
 
   @override
-  ConsumerState<AlbumScreen> createState() => _AlbumScreenState();
+  ConsumerState<ArtistScreen> createState() => _ArtistScreenState();
 }
 
-class _AlbumScreenState extends ConsumerState<AlbumScreen>
+class _ArtistScreenState extends ConsumerState<ArtistScreen>
     with SingleTickerProviderStateMixin {
   Color _dominantColor = const Color(0xFF333333);
   bool _colorExtracted = false;
@@ -74,27 +69,24 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen>
       backgroundColor: BopTheme.background,
       body: allSongs.when(
         data: (songs) {
-          final albumSongs = songs
-              .where((s) => s.album.toLowerCase() == widget.albumName.toLowerCase())
+          final artistSongs = songs
+              .where((s) => s.artist.toLowerCase() == widget.artistName.toLowerCase())
               .toList();
 
-          // Find album art from first song with artwork
-          final artSong = albumSongs.cast<Song?>().firstWhere(
+          final artSong = artistSongs.cast<Song?>().firstWhere(
             (s) => s!.artBytes != null && s.artBytes!.isNotEmpty,
             orElse: () => null,
           );
           final artBytes = artSong?.artBytes;
 
-          // Extract color from actual cover art
           if (artBytes != null && artBytes.isNotEmpty) {
             _extractColor(artBytes);
           }
 
-          // Check if this album is currently playing
-          final isAlbumPlaying = albumSongs.any(
+          final isArtistPlaying = artistSongs.any(
               (s) => s.id == playerState.currentSong?.id) && playerState.isPlaying;
 
-          if (isAlbumPlaying) {
+          if (isArtistPlaying) {
             _playPauseController.forward();
           } else {
             _playPauseController.reverse();
@@ -105,7 +97,6 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen>
               Expanded(
                 child: CustomScrollView(
                   slivers: [
-                    // ── Header with album art ────────────
                     SliverToBoxAdapter(
                       child: Container(
                         decoration: BoxDecoration(
@@ -119,20 +110,17 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen>
                           bottom: false,
                           child: Column(
                             children: [
-                              // Back button
                               Align(
                                 alignment: Alignment.centerLeft,
                                 child: IconButton(
-                                  icon: const Icon(Icons.arrow_back,
-                                      color: Colors.white),
+                                  icon: const Icon(Icons.arrow_back, color: Colors.white),
                                   onPressed: () => Navigator.pop(context),
                                 ),
                               ),
                               const SizedBox(height: 8),
-                                // Album art
                                 Container(
                                   decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(8),
+                                    shape: BoxShape.circle,
                                     boxShadow: [
                                       BoxShadow(
                                         color: _dominantColor.withOpacity(0.4),
@@ -141,20 +129,18 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen>
                                       ),
                                     ],
                                   ),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(8),
+                                  child: ClipOval(
                                     child: SizedBox(
                                       width: 180,
                                       height: 180,
                                       child: artBytes == null || artBytes.isEmpty
                                           ? Container(
                                               color: _dominantColor.withOpacity(0.5),
-                                              child: const Icon(Icons.album,
-                                                  color: Colors.white38, size: 64),
+                                              child: const Icon(Icons.person, color: Colors.white38, size: 64),
                                             )
                                           : Image.memory(
                                               Uint8List.fromList(artBytes),
-                                              key: ValueKey('album_screen_${widget.albumName}'),
+                                              key: ValueKey('artist_screen_${widget.artistName}'),
                                               fit: BoxFit.cover,
                                               gaplessPlayback: true,
                                               cacheWidth: 360,
@@ -164,15 +150,13 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen>
                                   ),
                                 ),
                               const SizedBox(height: 16),
-                              // Album name
                               Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 24),
+                                padding: const EdgeInsets.symmetric(horizontal: 24),
                                 child: Text(
-                                  widget.albumName,
+                                  widget.artistName,
                                   style: const TextStyle(
                                     color: Colors.white,
-                                    fontSize: 20,
+                                    fontSize: 24,
                                     fontWeight: FontWeight.w800,
                                   ),
                                   textAlign: TextAlign.center,
@@ -181,24 +165,14 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen>
                                 ),
                               ),
                               const SizedBox(height: 4),
-                              // Artist
                               Text(
-                                widget.artist,
+                                '${artistSongs.length} songs',
                                 style: const TextStyle(
-                                  color: BopTheme.textSecondary,
+                                  color: BopTheme.textMuted,
                                   fontSize: 13,
                                 ),
                               ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '${albumSongs.length} songs',
-                                style: const TextStyle(
-                                  color: BopTheme.textMuted,
-                                  fontSize: 11,
-                                ),
-                              ),
                               const SizedBox(height: 12),
-                              // Play all button with animation
                               Padding(
                                 padding: const EdgeInsets.symmetric(horizontal: 24),
                                 child: Row(
@@ -207,13 +181,10 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen>
                                     InkWell(
                                       borderRadius: BorderRadius.circular(24),
                                       onTap: () {
-                                        if (isAlbumPlaying) {
+                                        if (isArtistPlaying) {
                                           ref.read(playerProvider.notifier).togglePlayPause();
-                                        } else if (albumSongs.isNotEmpty) {
-                                          ref
-                                              .read(playerProvider.notifier)
-                                              .playQueue(albumSongs,
-                                                  startIndex: 0);
+                                        } else if (artistSongs.isNotEmpty) {
+                                          ref.read(playerProvider.notifier).playQueue(artistSongs, startIndex: 0);
                                         }
                                       },
                                       child: Container(
@@ -223,12 +194,13 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen>
                                           color: BopTheme.green,
                                           shape: BoxShape.circle,
                                         ),
-                                        child: Icon(
-                                          isAlbumPlaying && playerState.isPlaying
-                                              ? Icons.pause
-                                              : Icons.play_arrow,
-                                          color: Colors.black,
-                                          size: 28,
+                                        child: Center(
+                                          child: AnimatedIcon(
+                                            icon: AnimatedIcons.play_pause,
+                                            progress: _playPauseController,
+                                            color: Colors.black,
+                                            size: 28,
+                                          ),
                                         ),
                                       ),
                                     ),
@@ -241,26 +213,21 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen>
                         ),
                       ),
                     ),
-                    // ── Song list ─────────────────────────
                     SliverList(
                       delegate: SliverChildBuilderDelegate(
                         (context, index) {
-                          final song = albumSongs[index];
-                          final isPlaying =
-                              playerState.currentSong?.id == song.id;
+                          final song = artistSongs[index];
+                          final isPlaying = playerState.currentSong?.id == song.id;
 
                           return ListTile(
-                            contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 2),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
                             leading: SizedBox(
                               width: 24,
                               child: Center(
                                 child: isPlaying && playerState.isPlaying
-                                    ? const AnimatedEqualizer(
-                                        color: BopTheme.green, size: 18)
+                                    ? const AnimatedEqualizer(color: BopTheme.green, size: 18)
                                     : isPlaying
-                                        ? const Icon(Icons.equalizer,
-                                            color: BopTheme.green, size: 18)
+                                        ? const Icon(Icons.equalizer, color: BopTheme.green, size: 18)
                                         : Text(
                                             '${index + 1}',
                                             style: const TextStyle(
@@ -273,9 +240,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen>
                             title: Text(
                               song.title,
                               style: TextStyle(
-                                color: isPlaying
-                                    ? BopTheme.green
-                                    : BopTheme.textPrimary,
+                                color: isPlaying ? BopTheme.green : BopTheme.textPrimary,
                                 fontWeight: FontWeight.w600,
                                 fontSize: 14,
                               ),
@@ -283,23 +248,20 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen>
                               overflow: TextOverflow.ellipsis,
                             ),
                             subtitle: Text(
-                              song.artist,
+                              song.album,
                               style: const TextStyle(
                                 color: BopTheme.textSecondary,
                                 fontSize: 11,
                               ),
                             ),
                             onTap: () {
-                              ref
-                                  .read(playerProvider.notifier)
-                                  .playQueue(albumSongs, startIndex: index);
+                              ref.read(playerProvider.notifier).playQueue(artistSongs, startIndex: index);
                             },
                           );
                         },
-                        childCount: albumSongs.length,
+                        childCount: artistSongs.length,
                       ),
                     ),
-                    // Bottom spacing for mini player
                     const SliverPadding(padding: EdgeInsets.only(bottom: 100)),
                   ],
                 ),
@@ -310,8 +272,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen>
         },
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (_, __) => const Center(
-          child: Text('Error loading album',
-              style: TextStyle(color: Colors.white)),
+          child: Text('Error loading artist', style: TextStyle(color: Colors.white)),
         ),
       ),
     );

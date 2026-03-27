@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────
 // screens/auth/auth_screen.dart
 // Start screen: Google sign-in OR Continue as Guest.
-// Matches beatspill_full_ui_v2 Auth tab exactly.
+// Matches Bop_full_ui_v2 Auth tab exactly.
 // ─────────────────────────────────────────────────────────────
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,7 +18,7 @@ class AuthScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
-      backgroundColor: BeatSpillTheme.background,
+      backgroundColor: BopTheme.background,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -35,7 +35,7 @@ class AuthScreen extends ConsumerWidget {
                 width: 48,
                 height: 48,
                 decoration: const BoxDecoration(
-                  color: BeatSpillTheme.green,
+                  color: BopTheme.green,
                   shape: BoxShape.circle,
                 ),
                 child: const Center(
@@ -116,7 +116,7 @@ class AuthScreen extends ConsumerWidget {
     return Text(
       text,
       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-        color: BeatSpillTheme.textMuted,
+        color: BopTheme.textMuted,
       ),
     );
   }

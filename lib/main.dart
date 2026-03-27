@@ -1,8 +1,10 @@
 // lib/main.dart
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import 'services/db_service.dart';
 import 'services/llm_service.dart';
@@ -30,29 +32,45 @@ Future<void> main() async {
   // Initialize audio service for media notifications
   await initAudioService();
 
+  // Request permissions at startup for media access
+  _requestPermissions();
+
   // Open Isar database
   await DbService.instance.open();
 
   // Initialize LLM if model path exists
   await LlmService.instance.loadModel();
 
-  // Check if user has already onboarded
   final prefs = await SharedPreferences.getInstance();
-  final hasOnboarded = prefs.getBool('has_onboarded') ?? false;
+  final hasOnboarded = prefs.getBool('onboarded') ?? false;
 
-  runApp(ProviderScope(child: BeatSpillApp(hasOnboarded: hasOnboarded)));
+  // ── Global Image Cache Limits ─────────────────────────
+  // Prevents RAM bloat from large libraries of album art.
+  PaintingBinding.instance.imageCache.maximumSize = 100; // Limit by # of images
+  PaintingBinding.instance.imageCache.maximumSizeBytes = 50 * 1024 * 1024; // Limit to 50MB
+
+  runApp(ProviderScope(child: BopApp(hasOnboarded: hasOnboarded)));
 }
 
-class BeatSpillApp extends StatelessWidget {
+Future<void> _requestPermissions() async {
+  if (Platform.isAndroid) {
+    // Android 13+ (SDK 33+)
+    await Permission.audio.request();
+    // Fallback for older
+    await Permission.storage.request();
+  }
+}
+
+class BopApp extends StatelessWidget {
   final bool hasOnboarded;
-  const BeatSpillApp({super.key, required this.hasOnboarded});
+  const BopApp({super.key, required this.hasOnboarded});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'BeatSpill',
+      title: 'Bop',
       debugShowCheckedModeBanner: false,
-      theme: BeatSpillTheme.dark,
+      theme: BopTheme.dark,
       // ── Route table ───────────────────────────
       initialRoute: hasOnboarded ? '/home' : '/auth',
       routes: {

@@ -46,6 +46,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
     with SingleTickerProviderStateMixin {
   Color _dominantColor = const Color(0xFF333333);
   late AnimationController _playPauseController;
+  late PageController _pageController;
 
   @override
   void initState() {
@@ -54,12 +55,14 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
       vsync: this,
       duration: const Duration(milliseconds: 300),
     );
+    _pageController = PageController(initialPage: ref.read(playerProvider).currentIndex);
     _extractDominant(widget.song);
   }
 
   @override
   void dispose() {
     _playPauseController.dispose();
+    _pageController.dispose();
     super.dispose();
   }
 
@@ -85,17 +88,25 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
         ? position.inMilliseconds / duration.inMilliseconds
         : 0.0;
 
-    // Update dominant color when song changes
-    if (song.id != widget.song.id || _dominantColor == const Color(0xFF333333)) {
-      _extractDominant(song);
-    }
+    // Using ref.listen for side effects is more efficient than build-time checks
+    ref.listen(playerProvider, (previous, next) {
+      if (previous?.currentSong?.id != next.currentSong?.id) {
+        if (next.currentSong != null) _extractDominant(next.currentSong!);
+      }
+      
+      if (previous?.isPlaying != next.isPlaying) {
+        if (next.isPlaying) _playPauseController.forward();
+        else _playPauseController.reverse();
+      }
 
-    // Sync play/pause animation
-    if (isPlaying) {
-      _playPauseController.forward();
-    } else {
-      _playPauseController.reverse();
-    }
+      if (_pageController.hasClients && next.currentIndex != _pageController.page?.round()) {
+         _pageController.animateToPage(
+          next.currentIndex,
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeInOut,
+        );
+      }
+    });
 
     return Scaffold(
       body: Container(
@@ -104,7 +115,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
             colors: [
               _dominantColor,
               _dominantColor.withOpacity(0.6),
-              BeatSpillTheme.background,
+              BopTheme.background,
             ],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
@@ -147,31 +158,49 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
 
               // ── Album art ─────────────────────────────
               Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 32),
-                  child: AspectRatio(
-                    aspectRatio: 1,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(8),
-                        boxShadow: [
-                          BoxShadow(
-                            color: _dominantColor.withOpacity(0.4),
-                            blurRadius: 32,
-                            offset: const Offset(0, 12),
-                          ),
-                        ],
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: song.artBytes != null && song.artBytes!.isNotEmpty
-                            ? Image.memory(
-                                Uint8List.fromList(song.artBytes!),
-                                key: ValueKey('art_${song.id}'),
-                                fit: BoxFit.cover,
-                                gaplessPlayback: true,
-                              )
-                            : _PlaceholderArt(title: song.title),
+                child: RepaintBoundary(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 32),
+                    child: AspectRatio(
+                      aspectRatio: 1,
+                      child: PageView.builder(
+                        itemCount: playerState.queue.isEmpty ? 1 : playerState.queue.length,
+                        controller: _pageController,
+                        onPageChanged: (index) {
+                          if (index != playerState.currentIndex) {
+                            ref.read(playerProvider.notifier).skipTo(index);
+                          }
+                        },
+                        itemBuilder: (context, index) {
+                          final displaySong = playerState.queue.isEmpty ? song : playerState.queue[index];
+                          return AnimatedContainer(
+                            duration: const Duration(milliseconds: 300),
+                            margin: const EdgeInsets.symmetric(horizontal: 12),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(8),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: _dominantColor.withOpacity(0.4),
+                                  blurRadius: 32,
+                                  offset: const Offset(0, 12),
+                                ),
+                              ],
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: displaySong.artBytes != null && displaySong.artBytes!.isNotEmpty
+                                  ? Image.memory(
+                                      Uint8List.fromList(displaySong.artBytes!),
+                                      key: ValueKey('art_${displaySong.id}'),
+                                      fit: BoxFit.cover,
+                                      gaplessPlayback: true,
+                                      cacheWidth: 600,
+                                      cacheHeight: 600,
+                                    )
+                                  : _PlaceholderArt(title: displaySong.title),
+                            ),
+                          );
+                        },
                       ),
                     ),
                   ),
@@ -179,6 +208,37 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
               ),
 
               const SizedBox(height: 24),
+
+              if (playerState.djTransitionMsg != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24).copyWith(bottom: 12),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: BopTheme.green.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: BopTheme.green.withOpacity(0.5)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.auto_awesome, color: BopTheme.green, size: 14),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  playerState.djTransitionMsg!,
+                                  style: const TextStyle(color: BopTheme.green, fontSize: 12, fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
 
               // ── Title + like ──────────────────────────
               Padding(
@@ -213,8 +273,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                       icon: Icon(
                         song.isLiked ? Icons.favorite : Icons.favorite_border,
                         color: song.isLiked
-                            ? BeatSpillTheme.green
-                            : BeatSpillTheme.textSecondary,
+                            ? BopTheme.green
+                            : BopTheme.textSecondary,
                       ),
                       onPressed: () {
                         ref.read(playerProvider.notifier).toggleLike();
@@ -236,9 +296,9 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                         trackHeight: 3,
                         thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
                         overlayShape: SliderComponentShape.noOverlay,
-                        activeTrackColor: BeatSpillTheme.textPrimary,
-                        inactiveTrackColor: BeatSpillTheme.textMuted,
-                        thumbColor: BeatSpillTheme.textPrimary,
+                        activeTrackColor: BopTheme.textPrimary,
+                        inactiveTrackColor: BopTheme.textMuted,
+                        thumbColor: BopTheme.textPrimary,
                       ),
                       child: Slider(
                         value: progress.clamp(0.0, 1.0),
@@ -272,15 +332,15 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                     IconButton(
                       icon: Icon(Icons.shuffle,
                           color: playerState.shuffleEnabled
-                              ? BeatSpillTheme.green
-                              : BeatSpillTheme.textSecondary),
+                              ? BopTheme.green
+                              : BopTheme.textSecondary),
                       onPressed: () {
                         ref.read(playerProvider.notifier).toggleShuffle();
                       },
                     ),
                     IconButton(
                       iconSize: 36,
-                      icon: const Icon(Icons.skip_previous, color: BeatSpillTheme.textPrimary),
+                      icon: const Icon(Icons.skip_previous, color: BopTheme.textPrimary),
                       onPressed: () {
                         ref.read(playerProvider.notifier).skipPrevious();
                       },
@@ -293,7 +353,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                         width: 56,
                         height: 56,
                         decoration: const BoxDecoration(
-                          color: BeatSpillTheme.textPrimary,
+                          color: BopTheme.textPrimary,
                           shape: BoxShape.circle,
                         ),
                         child: Center(
@@ -308,16 +368,21 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                     ),
                     IconButton(
                       iconSize: 36,
-                      icon: const Icon(Icons.skip_next, color: BeatSpillTheme.textPrimary),
+                      icon: const Icon(Icons.skip_next, color: BopTheme.textPrimary),
                       onPressed: () {
                         ref.read(playerProvider.notifier).skipNext();
                       },
                     ),
                     IconButton(
-                      icon: Icon(Icons.repeat,
-                          color: playerState.repeatMode != PlayerRepeatMode.off
-                              ? BeatSpillTheme.green
-                              : BeatSpillTheme.textSecondary),
+                      icon: Icon(
+                        playerState.repeatMode == PlayerRepeatMode.one 
+                            ? Icons.repeat_one 
+                            : Icons.repeat,
+                        color: playerState.repeatMode != PlayerRepeatMode.off
+                            ? BopTheme.green
+                            : Colors.white24,
+                        size: 22,
+                      ),
                       onPressed: () {
                         ref.read(playerProvider.notifier).toggleRepeat();
                       },
@@ -433,11 +498,11 @@ class _ContextMenu extends ConsumerWidget {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Cancel', style: TextStyle(color: BeatSpillTheme.textSecondary)),
+                child: const Text('Cancel', style: TextStyle(color: BopTheme.textSecondary)),
               ),
               TextButton(
                 onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('Remove', style: TextStyle(color: BeatSpillTheme.red)),
+                child: const Text('Remove', style: TextStyle(color: BopTheme.red)),
               ),
             ],
           ),
@@ -477,6 +542,8 @@ class _ContextMenu extends ConsumerWidget {
                             key: ValueKey('ctx_art_${currentSong.id}'),
                             fit: BoxFit.cover,
                             gaplessPlayback: true,
+                            cacheWidth: 100,
+                            cacheHeight: 100,
                           )
                         : const ColoredBox(color: Color(0xFFC0392B)),
                   ),
@@ -495,7 +562,7 @@ class _ContextMenu extends ConsumerWidget {
                           overflow: TextOverflow.ellipsis),
                       Text(currentSong.artist,
                           style: const TextStyle(
-                              color: BeatSpillTheme.textSecondary,
+                              color: BopTheme.textSecondary,
                               fontSize: 12)),
                     ],
                   ),
@@ -507,8 +574,8 @@ class _ContextMenu extends ConsumerWidget {
           ...items.map((item) => ListTile(
                 leading: Icon(item.$1,
                     color: item.$2 == 'Unlike'
-                        ? BeatSpillTheme.green
-                        : BeatSpillTheme.textSecondary,
+                        ? BopTheme.green
+                        : BopTheme.textSecondary,
                     size: 20),
                 title: Text(item.$2,
                     style: const TextStyle(color: Colors.white, fontSize: 14)),
@@ -562,13 +629,13 @@ class _ContextMenu extends ConsumerWidget {
             if (song.genre.isNotEmpty)
               Text('Genre: ${song.genre}', style: const TextStyle(color: Colors.white70)),
             const SizedBox(height: 12),
-            const Text('Source: Local File', style: TextStyle(color: BeatSpillTheme.textMuted, fontSize: 12)),
+            const Text('Source: Local File', style: TextStyle(color: BopTheme.textMuted, fontSize: 12)),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Close', style: TextStyle(color: BeatSpillTheme.green)),
+            child: const Text('Close', style: TextStyle(color: BopTheme.green)),
           ),
         ],
       ),
@@ -599,7 +666,8 @@ class _LyricsPeekState extends ConsumerState<_LyricsPeek> {
   @override
   Widget build(BuildContext context) {
     final lyricsAsync = ref.watch(lyricsProvider(widget.song));
-    final position = ref.watch(playerProvider).position;
+    // Optimization: Selective watching to avoid rebuilding entire peek widget on every position update
+    final position = ref.watch(playerProvider.select((s) => s.position));
 
     // Use the dominant color for the lyrics card
     final cardColor = HSLColor.fromColor(widget.dominantColor)
@@ -609,7 +677,8 @@ class _LyricsPeekState extends ConsumerState<_LyricsPeek> {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
-      child: GestureDetector(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
         onTap: () {
           Navigator.push(
             context,

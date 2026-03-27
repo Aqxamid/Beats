@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-class BeatSpillTheme {
+class BopTheme {
   // ── Core palette ──────────────────────────────────
   static const Color background    = Color(0xFF121212);
   static const Color surface       = Color(0xFF1A1A1A);
@@ -26,6 +26,10 @@ class BeatSpillTheme {
       onPrimary: Colors.black,
       onSurface: textPrimary,
     ),
+    splashFactory: NoSplash.splashFactory,
+    splashColor: Colors.transparent,
+    highlightColor: Colors.transparent,
+    hoverColor: Colors.transparent,
     appBarTheme: const AppBarTheme(
       backgroundColor: background,
       foregroundColor: textPrimary,
@@ -80,5 +84,6 @@ class BeatSpillTheme {
       selectedLabelStyle: TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
       unselectedLabelStyle: TextStyle(fontSize: 10),
     ),
+    visualDensity: VisualDensity.adaptivePlatformDensity,
   );
 }

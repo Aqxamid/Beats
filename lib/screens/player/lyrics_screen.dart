@@ -27,10 +27,11 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
   @override
   Widget build(BuildContext context) {
     final lyricsAsync = ref.watch(lyricsProvider(widget.song));
-    final position = ref.watch(playerProvider).position;
+    // Optimization: Selective watching to avoid rebuilding entire screen on every frame
+    final position = ref.watch(playerProvider.select((s) => s.position));
 
     return Scaffold(
-      backgroundColor: BeatSpillTheme.background,
+      backgroundColor: BopTheme.background,
       body: SafeArea(
         child: lyricsAsync.when(
           data: (lyrics) {
@@ -75,7 +76,7 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
               children: [
                 IconButton(
                   icon: const Icon(Icons.keyboard_arrow_down,
-                      color: BeatSpillTheme.textSecondary),
+                      color: BopTheme.textSecondary),
                   onPressed: () => Navigator.pop(context),
                 ),
                 Expanded(
@@ -90,7 +91,7 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
                       final targetSize = isActive ? 26.0 : (distance == 1 ? 19.0 : 16.0);
                       final targetWeight = isActive ? FontWeight.w800 : FontWeight.w600;
 
-                      return GestureDetector(
+                      return InkWell(
                         onTap: () {
                           if (lines[i].timestamp != Duration.zero) {
                             ref.read(playerProvider.notifier).seek(lines[i].timestamp);
@@ -122,7 +123,7 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
                                         style: TextStyle(
                                           fontSize: fontSize,
                                           fontWeight: targetWeight,
-                                          color: BeatSpillTheme.textPrimary,
+                                          color: BopTheme.textPrimary,
                                           height: 1.4,
                                         ),
                                       ),
@@ -141,11 +142,11 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
             );
           },
           loading: () => const Center(
-            child: CircularProgressIndicator(color: BeatSpillTheme.green),
+            child: CircularProgressIndicator(color: BopTheme.green),
           ),
           error: (e, __) => Center(
             child: Text('Error: $e',
-                style: const TextStyle(color: BeatSpillTheme.red)),
+                style: const TextStyle(color: BopTheme.red)),
           ),
         ),
       ),
@@ -160,7 +161,7 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
           const Icon(Icons.music_note, color: Colors.white24, size: 48),
           const SizedBox(height: 16),
           Text('Lyrics not available',
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: BeatSpillTheme.textMuted)),
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: BopTheme.textMuted)),
           const SizedBox(height: 8),
           Text(widget.song.title,
               style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),

@@ -6,7 +6,7 @@ import '../models/playlist.dart';
 import '../services/db_service.dart';
 import '../theme/app_theme.dart';
 
-class PlaylistCoverWidget extends StatelessWidget {
+class PlaylistCoverWidget extends StatefulWidget {
   final Playlist playlist;
   final double size;
   const PlaylistCoverWidget({
@@ -16,67 +16,123 @@ class PlaylistCoverWidget extends StatelessWidget {
   });
 
   @override
+  State<PlaylistCoverWidget> createState() => _PlaylistCoverWidgetState();
+}
+
+class _PlaylistCoverWidgetState extends State<PlaylistCoverWidget> {
+  List<List<int>>? _cachedArts;
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadArt();
+  }
+
+  @override
+  void didUpdateWidget(PlaylistCoverWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.playlist.id != widget.playlist.id) {
+      _loadArt();
+    }
+  }
+
+  Future<void> _loadArt() async {
+    if (_isLoading) return;
+    setState(() => _isLoading = true);
+    
+    try {
+      // Efficiency check: Don't load all songs in a 1000+ song playlist just for 4 covers.
+      // Revert to using the songs link directly as no backlink exists in the model.
+      if (!widget.playlist.songs.isLoaded) {
+        await widget.playlist.songs.load();
+      }
+      final songs = widget.playlist.songs.take(20).toList();
+
+      final arts = <List<int>>[];
+      final seenArtHashes = <int>{};
+      
+      for (final song in songs) {
+        if (song.artBytes != null && song.artBytes!.isNotEmpty) {
+          final hash = song.artBytes!.length; 
+          if (!seenArtHashes.contains(hash)) {
+            seenArtHashes.add(hash);
+            arts.add(song.artBytes!);
+          }
+          if (arts.length >= 4) break;
+        }
+      }
+      
+      if (mounted) {
+        setState(() {
+          _cachedArts = arts;
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<List<int>>>(
-      future: _getArtwork(),
-      builder: (context, snap) {
-        final arts = snap.data ?? [];
-        final color = Color(int.parse(playlist.coverColor.replaceFirst('#', '0xFF')));
+    final arts = _cachedArts ?? [];
+    final colorString = widget.playlist.coverColor.startsWith('#') 
+        ? widget.playlist.coverColor.replaceFirst('#', '0xFF')
+        : '0xFF66BB6A'; // Fallback green
+    final color = Color(int.parse(colorString));
 
-        if (arts.isEmpty) {
-          // No artwork — show colored placeholder with icon
-          return Container(
-            width: size,
-            height: size,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Icon(Icons.queue_music,
-                color: Colors.white.withAlpha(153), size: size * 0.45),
-          );
-        }
-
-        if (arts.length == 1) {
-          // Single artwork — show full size
-          return ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: Image.memory(
-              Uint8List.fromList(arts[0]),
-              width: size,
-              height: size,
-              fit: BoxFit.cover,
-              gaplessPlayback: true,
-            ),
-          );
-        }
-
-        // 2×2 collage
-        final half = size / 2;
-        return ClipRRect(
+    if (arts.isEmpty) {
+      return Container(
+        width: widget.size,
+        height: widget.size,
+        decoration: BoxDecoration(
+          color: color,
           borderRadius: BorderRadius.circular(4),
-          child: SizedBox(
-            width: size,
-            height: size,
-            child: Column(
+        ),
+        child: Icon(Icons.queue_music,
+            color: Colors.white.withAlpha(153), size: widget.size * 0.45),
+      );
+    }
+
+    if (arts.length == 1) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(4),
+        child: Image.memory(
+          Uint8List.fromList(arts[0]),
+          width: widget.size,
+          height: widget.size,
+          cacheWidth: (widget.size * 2).toInt(),
+          cacheHeight: (widget.size * 2).toInt(),
+          fit: BoxFit.cover,
+          gaplessPlayback: true,
+        ),
+      );
+    }
+
+    final half = widget.size / 2;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(4),
+      child: SizedBox(
+        width: widget.size,
+        height: widget.size,
+        child: Column(
+          children: [
+            Row(
               children: [
-                Row(
-                  children: [
-                    _tile(arts.length > 0 ? arts[0] : null, half, color),
-                    _tile(arts.length > 1 ? arts[1] : null, half, color),
-                  ],
-                ),
-                Row(
-                  children: [
-                    _tile(arts.length > 2 ? arts[2] : null, half, color),
-                    _tile(arts.length > 3 ? arts[3] : null, half, color),
-                  ],
-                ),
+                _tile(arts.length > 0 ? arts[0] : null, half, color),
+                _tile(arts.length > 1 ? arts[1] : null, half, color),
               ],
             ),
-          ),
-        );
-      },
+            Row(
+              children: [
+                _tile(arts.length > 2 ? arts[2] : null, half, color),
+                _tile(arts.length > 3 ? arts[3] : null, half, color),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -86,6 +142,8 @@ class PlaylistCoverWidget extends StatelessWidget {
         Uint8List.fromList(artBytes),
         width: tileSize,
         height: tileSize,
+        cacheWidth: (tileSize * 2).toInt(),
+        cacheHeight: (tileSize * 2).toInt(),
         fit: BoxFit.cover,
         gaplessPlayback: true,
       );
@@ -93,28 +151,7 @@ class PlaylistCoverWidget extends StatelessWidget {
     return Container(
       width: tileSize,
       height: tileSize,
-      color: fallback.withAlpha(178), // ~0.7 opacity
+      color: fallback.withAlpha(178),
     );
-  }
-
-  Future<List<List<int>>> _getArtwork() async {
-    if (!playlist.songs.isLoaded) {
-      await playlist.songs.load();
-    }
-    final songs = playlist.songs.toList();
-    final arts = <List<int>>[];
-    final seenArt = <int>{};
-    for (final song in songs) {
-      if (song.artBytes != null && song.artBytes!.isNotEmpty) {
-        // Use hashCode to avoid duplicate identical arts
-        final hash = song.artBytes!.length;
-        if (!seenArt.contains(hash)) {
-          seenArt.add(hash);
-          arts.add(song.artBytes!);
-        }
-        if (arts.length >= 4) break;
-      }
-    }
-    return arts;
   }
 }

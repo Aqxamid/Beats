@@ -1,14 +1,21 @@
 // screens/library/home_screen.dart
 import 'dart:typed_data';
+import 'dart:math';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'smart_playlist_screen.dart';
 import '../../theme/app_theme.dart';
 import '../../providers/stats_provider.dart';
 import '../../providers/player_provider.dart';
-import '../../widgets/mini_player.dart';
-import '../player/now_playing_screen.dart';
+import '../../providers/settings_provider.dart';
 import '../../models/song.dart';
+import '../../widgets/mini_player.dart';
+import '../../widgets/playlist_collage.dart';
+import '../player/now_playing_screen.dart';
 import '../profile/settings_screen.dart';
+import '../../services/db_service.dart';
+import '../../models/playlist.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -37,7 +44,7 @@ class HomeScreen extends ConsumerWidget {
                         ?.copyWith(fontSize: 20),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.settings, color: BeatSpillTheme.textSecondary),
+                    icon: Icon(Icons.settings, color: BopTheme.textSecondary),
                     onPressed: () {
                       Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
                     },
@@ -58,10 +65,10 @@ class HomeScreen extends ConsumerWidget {
                 child: recentSongs.when(
                   data: (songs) {
                     if (songs.isEmpty) {
-                      return const Center(
+                      return Center(
                         child: Text('Play some songs to see them here',
                             style: TextStyle(
-                                color: BeatSpillTheme.textMuted,
+                                color: BopTheme.textMuted,
                                 fontSize: 11)),
                       );
                     }
@@ -72,7 +79,8 @@ class HomeScreen extends ConsumerWidget {
                           const SizedBox(width: 12),
                       itemBuilder: (_, i) {
                         final song = songs[i];
-                        return GestureDetector(
+                        return InkWell(
+                          borderRadius: BorderRadius.circular(8),
                           onTap: () {
                             ref
                                 .read(playerProvider.notifier)
@@ -96,6 +104,8 @@ class HomeScreen extends ConsumerWidget {
                                           Uint8List.fromList(
                                               song.artBytes!),
                                           key: ValueKey('home_art_${song.id}'),
+                                          cacheWidth: 96,
+                                          cacheHeight: 96,
                                           fit: BoxFit.cover,
                                           gaplessPlayback: true,
                                         )
@@ -109,8 +119,8 @@ class HomeScreen extends ConsumerWidget {
                                 width: 48,
                                 child: Text(
                                   song.title,
-                                  style: const TextStyle(
-                                      color: BeatSpillTheme.textSecondary,
+                                  style: TextStyle(
+                                      color: BopTheme.textSecondary,
                                       fontSize: 9),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
@@ -126,12 +136,13 @@ class HomeScreen extends ConsumerWidget {
                   loading: () => const Center(
                       child: CircularProgressIndicator()),
                   error: (_, __) => const SizedBox.shrink(),
+                  skipLoadingOnReload: true,
                 ),
               ),
               const SizedBox(height: 20),
 
-              // ── Your Wrapped ──────────────────────
-              Text('Your Wrapped',
+              // ── Bop Recap ─────────────────────────
+              Text('Bop Recap',
                   style: Theme.of(context)
                       .textTheme
                       .titleSmall
@@ -142,8 +153,9 @@ class HomeScreen extends ConsumerWidget {
                 child: Row(
                   children: [
                     Expanded(
-                      child: _WrappedShortcut(
+                      child: _RecapShortcut(
                         label: 'Top Songs',
+                        type: _ShortcutType.circles,
                         onTap: () {
                           ref.read(statsPeriodProvider.notifier).state = StatsPeriod.month;
                           ref.read(shellTabIndexProvider.notifier).state = 2; // Stats tab
@@ -157,8 +169,9 @@ class HomeScreen extends ConsumerWidget {
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: _WrappedShortcut(
+                      child: _RecapShortcut(
                         label: 'Top Artists',
+                        type: _ShortcutType.rects,
                         onTap: () {
                           ref.read(statsPeriodProvider.notifier).state = StatsPeriod.month;
                           ref.read(shellTabIndexProvider.notifier).state = 2; // Stats tab
@@ -173,6 +186,16 @@ class HomeScreen extends ConsumerWidget {
                   ],
                 ),
               ),
+              const SizedBox(height: 20),
+
+              // ── AI Curated Playlists ────────────────────
+              Text("AI Curated Playlists",
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w700)),
+              const SizedBox(height: 10),
+              const _AiPlaylistsRow(),
               const SizedBox(height: 20),
 
               // ── Editor's picks ────────────────────
@@ -211,65 +234,80 @@ class HomeScreen extends ConsumerWidget {
   }
 }
 
-class _WrappedShortcut extends StatelessWidget {
+enum _ShortcutType { circles, rects }
+
+class _RecapShortcut extends ConsumerWidget {
   final String label;
   final Gradient gradient;
   final VoidCallback onTap;
-  const _WrappedShortcut({required this.label, required this.gradient, required this.onTap});
+  final _ShortcutType type;
+  const _RecapShortcut({required this.label, required this.gradient, required this.onTap, this.type = _ShortcutType.circles});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+
+    final isBold = ref.watch(boldDesignProvider);
+    
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
       child: Container(
         clipBehavior: Clip.hardEdge,
         decoration: BoxDecoration(
-          gradient: gradient,
-          borderRadius: BorderRadius.circular(8),
+          gradient: isBold ? null : gradient,
+          color: isBold ? gradient.colors.first : null,
+          borderRadius: BorderRadius.circular(isBold ? 0 : 8),
+          border: isBold ? Border.all(color: Colors.white, width: 2) : null,
         ),
         child: Stack(
           children: [
-            // Abstract geometric pattern
-            Positioned(
-              right: -20,
-              top: -20,
-              child: Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.15),
-                ),
-              ),
-            ),
-            Positioned(
-              left: -30,
-              bottom: -10,
-              child: Container(
-                width: 100,
-                height: 100,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.black.withOpacity(0.1),
-                ),
-              ),
-            ),
-            Positioned(
-              right: 20,
-              bottom: -30,
-              child: Transform.rotate(
-                angle: 0.5,
-                child: Container(
-                  width: 60,
-                  height: 60,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(16),
-                    color: Colors.white.withOpacity(0.08),
+            if (true) ...[
+              if (type == _ShortcutType.circles) ...[
+                 Positioned(
+                  right: -20,
+                  top: -20,
+                  child: Container(
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withOpacity(0.12)),
                   ),
                 ),
-              ),
-            ),
+                Positioned(
+                  left: -10,
+                  bottom: -20,
+                  child: Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black.withOpacity(0.1)),
+                  ),
+                ),
+              ] else ...[
+                 Positioned(
+                  right: -10,
+                  bottom: -10,
+                  child: Transform.rotate(
+                    angle: 0.4,
+                    child: Container(
+                      width: 70,
+                      height: 70,
+                      decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), color: Colors.white.withOpacity(0.1)),
+                    ),
+                  ),
+                ),
+                 Positioned(
+                  left: 10,
+                  top: -20,
+                  child: Transform.rotate(
+                    angle: -0.2,
+                    child: Container(
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(borderRadius: BorderRadius.circular(8), color: Colors.black.withOpacity(0.08)),
+                    ),
+                  ),
+                ),
+              ],
+            ],
             // Text content
             Padding(
               padding: const EdgeInsets.all(12),
@@ -307,7 +345,8 @@ class _EditorPicksRow extends ConsumerWidget {
             separatorBuilder: (_, __) => const SizedBox(width: 12),
             itemBuilder: (_, i) {
               final song = songs[i];
-              return GestureDetector(
+              return InkWell(
+                borderRadius: BorderRadius.circular(8),
                 onTap: () {
                   ref.read(playerProvider.notifier).playQueue(songs, startIndex: i);
                   Navigator.push(
@@ -325,16 +364,18 @@ class _EditorPicksRow extends ConsumerWidget {
                       child: Container(
                         width: 80,
                         height: 80,
-                        color: BeatSpillTheme.surface,
+                        color: BopTheme.surface,
                         child: song.artBytes != null && song.artBytes!.isNotEmpty
                             ? Image.memory(
                                 Uint8List.fromList(song.artBytes!),
                                 key: ValueKey('pick_art_${song.id}'),
                                 fit: BoxFit.cover,
                                 gaplessPlayback: true,
+                                cacheWidth: 160,
+                                cacheHeight: 160,
                               )
                             : Center(
-                                child: Icon(Icons.music_note, color: Colors.white24, size: 32),
+                                child: Icon(Icons.music_note, color: Colors.white10, size: 32),
                               ),
                       ),
                     ),
@@ -352,7 +393,7 @@ class _EditorPicksRow extends ConsumerWidget {
                       width: 80,
                       child: Text(
                         song.artist,
-                        style: const TextStyle(color: BeatSpillTheme.textSecondary, fontSize: 9),
+                        style: TextStyle(color: BopTheme.textSecondary, fontSize: 9),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -365,6 +406,128 @@ class _EditorPicksRow extends ConsumerWidget {
         },
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (_, __) => const SizedBox.shrink(),
+        skipLoadingOnReload: true,
+      ),
+    );
+  }
+}
+
+class _AiPlaylistsRow extends ConsumerWidget {
+  const _AiPlaylistsRow();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final aiAsync = ref.watch(aiPlaylistsProvider);
+    final isBold = ref.watch(boldDesignProvider);
+
+    return SizedBox(
+      height: 135,
+      child: aiAsync.when(
+        data: (playlists) {
+          if (playlists.isEmpty) return const SizedBox.shrink();
+          return ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: playlists.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            itemBuilder: (_, i) {
+              final playlist = playlists[i];
+              return InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => SmartPlaylistScreen(playlist: playlist),
+                    ),
+                  );
+                },
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: Stack(
+                        children: [
+                          Container(
+                            width: 120,
+                            height: 80,
+                            decoration: BoxDecoration(
+                              gradient: isBold 
+                                ? LinearGradient(
+                                    colors: playlist.isAiGenerated 
+                                      ? [const Color(0xFFE91E63), const Color(0xFF9C27B0)] // Vibrant Pink/Purple
+                                      : [const Color(0xFFFF9800), const Color(0xFFF44336)], // Vibrant Orange/Red
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  )
+                                : LinearGradient(
+                                    colors: playlist.isAiGenerated
+                                      ? [const Color(0xFF1DB954), const Color(0xFF191414)] // Classic Green/Black
+                                      : [const Color(0xFF3F51B5), const Color(0xFF212121)], // Vibrant Blue/Dark
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                              borderRadius: isBold ? BorderRadius.zero : BorderRadius.circular(4),
+                              border: isBold ? Border.all(color: Colors.white, width: 2) : null,
+                            ),
+                            child: PlaylistCollage(
+                              songs: playlist.songs,
+                              size: 120,
+                              borderRadius: isBold ? 0 : 4,
+                            ),
+                          ),
+                          Positioned(
+                            top: 4,
+                            right: 4,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.black54,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    playlist.isAiGenerated ? Icons.auto_awesome : Icons.flash_on, 
+                                    size: 10, 
+                                    color: playlist.isAiGenerated ? BopTheme.green : Colors.orangeAccent
+                                  ),
+                                  const SizedBox(width: 2),
+                                  Text(
+                                    playlist.isAiGenerated ? 'AI' : 'Smart',
+                                    style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    SizedBox(
+                      width: 120,
+                      child: Text(
+                        playlist.name,
+                        style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Text(
+                      '${playlist.songs.length} songs',
+                      style: const TextStyle(color: BopTheme.textSecondary, fontSize: 9),
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        },
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (_, __) => const SizedBox.shrink(),
+        skipLoadingOnReload: true,
       ),
     );
   }

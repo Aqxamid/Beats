@@ -53,4 +53,21 @@ class WrappedGenerator {
     reports.sort((a, b) => b.generatedAt.compareTo(a.generatedAt));
     return reports;
   }
+
+  /// Orchestrate generation of an annual recap.
+  Future<WrappedReport> generateYearly(int year) async {
+    // 1. Fetch data from DB
+    final report = await _stats.buildYearlyReport(year);
+    
+    // 2. Generate AI story
+    final recap = await _llm.generateWrappedRecap(report);
+    report.llmRecap = recap;
+
+    // 3. Persist to DB
+    await _db.isar.writeTxn(() async {
+      await _db.wrappedReports.put(report);
+    });
+    
+    return report;
+  }
 }

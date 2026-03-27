@@ -32,7 +32,7 @@ class MainShell extends ConsumerWidget {
           children: _screens,
         ),
       ),
-      bottomNavigationBar: _BeatSpillNavBar(
+      bottomNavigationBar: _BopNavBar(
         currentIndex: currentIndex,
         onTap: (i) => ref.read(shellTabIndexProvider.notifier).state = i,
       ),
@@ -41,10 +41,10 @@ class MainShell extends ConsumerWidget {
 }
 
 // ── Custom bottom nav ─────────────────────────────────────────
-class _BeatSpillNavBar extends StatelessWidget {
+class _BopNavBar extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
-  const _BeatSpillNavBar(
+  const _BopNavBar(
       {required this.currentIndex, required this.onTap});
 
   @override
@@ -59,7 +59,7 @@ class _BeatSpillNavBar extends StatelessWidget {
     return Container(
       decoration: const BoxDecoration(
         color: Color(0xFF0D0D0D),
-        border: Border(top: BorderSide(color: BeatSpillTheme.surfaceAlt, width: 0.5)),
+        border: Border(top: BorderSide(color: BopTheme.surfaceAlt, width: 0.5)),
       ),
       child: SafeArea(
         top: false,
@@ -71,8 +71,7 @@ class _BeatSpillNavBar extends StatelessWidget {
               final item = entry.value;
               final isActive = i == currentIndex;
               return Expanded(
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
+                child: InkWell(
                   onTap: () => onTap(i),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -80,8 +79,8 @@ class _BeatSpillNavBar extends StatelessWidget {
                       Icon(
                         isActive ? item.$1 : item.$2,
                         color: isActive
-                            ? BeatSpillTheme.textPrimary
-                            : BeatSpillTheme.textSecondary,
+                            ? BopTheme.textPrimary
+                            : BopTheme.textSecondary,
                         size: 22,
                       ),
                       const SizedBox(height: 2),
@@ -90,8 +89,8 @@ class _BeatSpillNavBar extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 10,
                           color: isActive
-                              ? BeatSpillTheme.textPrimary
-                              : BeatSpillTheme.textSecondary,
+                              ? BopTheme.textPrimary
+                              : BopTheme.textSecondary,
                           fontWeight: isActive
                               ? FontWeight.w600
                               : FontWeight.w400,

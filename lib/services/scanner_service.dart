@@ -7,6 +7,7 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../models/song.dart';
 import 'db_service.dart';
+import 'metadata_service.dart';
 
 class ScannerService {
   ScannerService._();
@@ -53,7 +54,16 @@ class ScannerService {
 
       // Check if already in Isar
       final existing = await _db.songs.filter().filePathEqualTo(filePath).findFirst();
-      if (existing != null) continue;
+      if (existing != null) {
+        // Migration: Populate URI if missing for older entries
+        if (existing.uri == null) {
+          existing.uri = info.uri;
+          await _db.isar.writeTxn(() async {
+            await _db.songs.put(existing);
+          });
+        }
+        continue;
+      }
 
       // Query artwork
       List<int>? artBytes;
@@ -70,6 +80,7 @@ class ScannerService {
 
       final song = Song()
         ..filePath = filePath
+        ..uri = info.uri
         ..title = info.title
         ..artist = info.artist ?? 'Unknown Artist'
         ..album = info.album ?? 'Unknown Album'
@@ -80,14 +91,27 @@ class ScannerService {
       await _db.isar.writeTxn(() async {
         await _db.songs.put(song);
       });
+      
+      // Kick off metadata enrichment in the background if tags are missing
+      if (MetadataService.instance.isArtistMissing(song.artist) || 
+          MetadataService.instance.isAlbumMissing(song.album) || 
+          MetadataService.instance.isGenreMissing(song.genre)) {
+        MetadataService.instance.fetchAndFillMetadata(song).then((success) {
+          if (success) {
+
+          }
+        });
+      }
+
       added++;
     }
 
-    // --- Pruning step: remove songs that no longer exist on disk ---
     final allSavedSongs = await _db.songs.where().findAll();
     final toDelete = <int>[];
     for (final s in allSavedSongs) {
       if (!File(s.filePath).existsSync()) {
+        // Only delete from DB if it's literally gone from the disk.
+        // If it's just hidden, we keep the entry so it stays hidden.
         toDelete.add(s.id);
       }
     }

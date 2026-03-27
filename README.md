@@ -1,4 +1,4 @@
-# BeatSpill
+# Bop
 
 An offline-first music player for Android with on-device Wrapped recaps powered by flexible GGUF LLM support.
 
@@ -11,6 +11,7 @@ An offline-first music player for Android with on-device Wrapped recaps powered 
 - Album art extracted and cached from audio file metadata
 
 ### 🎤 Synced Lyrics
+// Matches Bop_full_ui_v2 Auth tab exactly.
 - Fetches synced lyrics from lrclib.net automatically
 - Lyrics scroll in real-time with playback, centered on the active line
 - Tap any lyric line to seek to that timestamp
@@ -24,11 +25,17 @@ An offline-first music player for Android with on-device Wrapped recaps powered 
 - **Top artists** ranked by play count
 
 ### 🎁 Wrapped Recaps
-- Spotify Wrapped-style monthly recaps generated on-demand
-- 6-card swipeable slideshow: Intro → Minutes → Top Artist → Personality → AI Recap → Share
-- Personality types derived from listening habits (Night Owl, Early Bird, The Skimmer, etc.)
-- AI-generated recap paragraph via **Local GGUF Models** (on-device, with smart template fallback)
-- All reports saved to history for replay
+- **"Bold Rendition" Design**: A premium 8-card swipeable slideshow featuring dynamic organic/geometric hybrids and floating card aesthetics.
+- **Dual-Engine AI**: 
+    - **Local GGUF (Mobile AI)**: Full support for on-device LLMs (e.g., TinyLlama) via `llama_cpp_dart`.
+    - **Gemini 1.5 Flash**: Lightning-fast fallback for personalized music personality analysis.
+- **Month/Year Context**: Monthly recaps now dynamically display the target month for easier context.
+- **Shareable Stories**: High-contrast summary cards ready for social sharing.
+
+### ⚡ Performance & Stability
+- **Global Image Caching**: Strict memory limits (50MB / 100 images) to prevent RAM bloat on Android devices.
+- **Selective UI Rebuilds**: Optimized `NowPlayingScreen` and `LyricsScreen` using selective state watchers, ensuring 60FPS even during background metadata fetching.
+- **Data Efficiency**: Refactored database queries for stats and playlist covers to eliminate 1+N loading bottlenecks.
 
 ### 📚 Library Management
 - **All Songs** listing with search, sort by artist/album

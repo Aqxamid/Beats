@@ -1,6 +1,6 @@
-name: beatspill
-description: BeatSpill — offline music player with on-device Wrapped recaps.
-version: 1.1.0+2
+name: bop
+description: Bop — the ultimate offline music player with on-device Recap stories.
+version: 2.3.0+1
 
 environment:
   sdk: ">=3.0.0 <4.0.0"
@@ -61,6 +61,7 @@ dependencies:
   # Local LLM (GGUF)
   llama_cpp_dart: ^0.1.1
   file_picker: ^8.0.0
+  screenshot: ^3.0.0
 
 
 

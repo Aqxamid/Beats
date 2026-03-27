@@ -13,6 +13,8 @@ class Song {
   @Index(unique: true)
   late String filePath;
 
+  String? uri;
+
   late String title;
   late String artist;
   late String album;

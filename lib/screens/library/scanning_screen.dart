@@ -77,7 +77,7 @@ class _ScanningScreenState extends ConsumerState<ScanningScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: BeatSpillTheme.background,
+      backgroundColor: BopTheme.background,
       body: SafeArea(
         child: Center(
           child: Padding(
@@ -90,7 +90,7 @@ class _ScanningScreenState extends ConsumerState<ScanningScreen> {
                   width: 64,
                   height: 64,
                   decoration: const BoxDecoration(
-                    color: BeatSpillTheme.green,
+                    color: BopTheme.green,
                     shape: BoxShape.circle,
                   ),
                   child: const Center(
@@ -103,7 +103,7 @@ class _ScanningScreenState extends ConsumerState<ScanningScreen> {
                 Text(
                   _statusText,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: BeatSpillTheme.textPrimary,
+                    color: BopTheme.textPrimary,
                     fontWeight: FontWeight.w600,
                     fontSize: 16,
                   ),
@@ -116,7 +116,7 @@ class _ScanningScreenState extends ConsumerState<ScanningScreen> {
                   Text(
                     '$_current / $_total files',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: BeatSpillTheme.textMuted,
+                      color: BopTheme.textMuted,
                     ),
                   ),
                 const SizedBox(height: 24),
@@ -130,16 +130,16 @@ class _ScanningScreenState extends ConsumerState<ScanningScreen> {
                             borderRadius: BorderRadius.circular(4),
                             child: LinearProgressIndicator(
                               value: _current / _total,
-                              backgroundColor: BeatSpillTheme.surfaceAlt,
+                              backgroundColor: BopTheme.surfaceAlt,
                               valueColor: const AlwaysStoppedAnimation(
-                                  BeatSpillTheme.green),
+                                  BopTheme.green),
                               minHeight: 4,
                             ),
                           )
                         : const LinearProgressIndicator(
-                            backgroundColor: BeatSpillTheme.surfaceAlt,
+                            backgroundColor: BopTheme.surfaceAlt,
                             valueColor: AlwaysStoppedAnimation(
-                                BeatSpillTheme.green),
+                                BopTheme.green),
                             minHeight: 4,
                           ),
                   ),
@@ -147,13 +147,13 @@ class _ScanningScreenState extends ConsumerState<ScanningScreen> {
                 // Done checkmark
                 if (_done) ...[
                   const Icon(Icons.check_circle,
-                      color: BeatSpillTheme.green, size: 36),
+                      color: BopTheme.green, size: 36),
                   if (_added > 0) ...[
                     const SizedBox(height: 8),
                     Text(
                       'Added to your library',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: BeatSpillTheme.textSecondary,
+                        color: BopTheme.textSecondary,
                       ),
                     ),
                   ],

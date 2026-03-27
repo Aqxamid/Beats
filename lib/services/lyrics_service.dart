@@ -14,6 +14,7 @@ class LyricsService {
   /// Fetch lyrics for a song. Tries to find synced lyrics first.
   /// Result is cached in the Song model in Isar for offline use.
   Future<String?> fetchLyrics(Song song) async {
+    if (song.isHidden) return null;
     // 1. Always re-read from Isar to get the latest cached lyrics
     //    (the in-memory Song object may be stale)
     final freshSong = await DbService.instance.songs.get(song.id);
@@ -58,7 +59,7 @@ class LyricsService {
   Future<void> downloadAllMissingLyrics({
     required void Function(int current, int total) onProgress,
   }) async {
-    final allSongs = await DbService.instance.songs.where().findAll();
+    final allSongs = await DbService.instance.songs.where().filter().isHiddenEqualTo(false).findAll();
     final missing = allSongs.where((s) => s.lyrics == null || s.lyrics!.trim().isEmpty).toList();
 
     int completed = 0;

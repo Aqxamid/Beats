@@ -9,7 +9,7 @@ class ProfileScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: BeatSpillTheme.background,
+      backgroundColor: BopTheme.background,
       appBar: AppBar(
         actions: [
           IconButton(
@@ -36,7 +36,7 @@ class ProfileScreen extends StatelessWidget {
                 const SizedBox(height: 10),
                 const Text('maya',
                     style: TextStyle(
-                        color: BeatSpillTheme.textPrimary,
+                        color: BopTheme.textPrimary,
                         fontSize: 18,
                         fontWeight: FontWeight.w700)),
                 const SizedBox(height: 6),
@@ -69,7 +69,7 @@ class ProfileScreen extends StatelessWidget {
           const SizedBox(height: 12),
           const Text('Playlists',
               style: TextStyle(
-                  color: BeatSpillTheme.textPrimary,
+                  color: BopTheme.textPrimary,
                   fontWeight: FontWeight.w700,
                   fontSize: 16)),
           const SizedBox(height: 10),
@@ -78,7 +78,7 @@ class ProfileScreen extends StatelessWidget {
           const SizedBox(height: 8),
           const Text('See all playlists ›',
               style: TextStyle(
-                  color: BeatSpillTheme.textSecondary, fontSize: 12)),
+                  color: BopTheme.textSecondary, fontSize: 12)),
         ],
       ),
     );
@@ -96,13 +96,13 @@ class _StatItem extends StatelessWidget {
       children: [
         Text(value,
             style: const TextStyle(
-                color: BeatSpillTheme.textPrimary,
+                color: BopTheme.textPrimary,
                 fontSize: 18,
                 fontWeight: FontWeight.w700)),
         const SizedBox(height: 2),
         Text(label.toUpperCase(),
             style: const TextStyle(
-                color: BeatSpillTheme.textMuted,
+                color: BopTheme.textMuted,
                 fontSize: 9,
                 letterSpacing: 0.5)),
       ],
@@ -119,13 +119,13 @@ class _StatItemGreen extends _StatItem {
       children: [
         Text(value,
             style: const TextStyle(
-                color: BeatSpillTheme.green,
+                color: BopTheme.green,
                 fontSize: 18,
                 fontWeight: FontWeight.w700)),
         const SizedBox(height: 2),
         Text(label.toUpperCase(),
             style: const TextStyle(
-                color: BeatSpillTheme.textMuted,
+                color: BopTheme.textMuted,
                 fontSize: 9,
                 letterSpacing: 0.5)),
       ],
@@ -153,12 +153,12 @@ class _PlaylistRow extends StatelessWidget {
       ),
       title: Text(name,
           style: const TextStyle(
-              color: BeatSpillTheme.textPrimary, fontWeight: FontWeight.w600)),
+              color: BopTheme.textPrimary, fontWeight: FontWeight.w600)),
       subtitle: Text(subtitle,
           style: const TextStyle(
-              color: BeatSpillTheme.textSecondary, fontSize: 12)),
+              color: BopTheme.textSecondary, fontSize: 12)),
       trailing: const Icon(Icons.chevron_right,
-          color: BeatSpillTheme.textSecondary),
+          color: BopTheme.textSecondary),
       onTap: () {},
     );
   }

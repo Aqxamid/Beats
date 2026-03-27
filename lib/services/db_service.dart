@@ -118,8 +118,26 @@ class DbService {
         .findAll();
 
     final counts = <String, int>{};
+    final unknownEvents = <PlayEvent>[];
+
     for (final e in events) {
-      counts[e.genre] = (counts[e.genre] ?? 0) + 1;
+      String genre = e.genre;
+      if (genre == 'Unknown' || genre.isEmpty || genre == '<unknown>') {
+        unknownEvents.add(e);
+      } else {
+        counts[genre] = (counts[genre] ?? 0) + 1;
+      }
+    }
+
+    // Handle unknown genres in bulk if possible
+    if (unknownEvents.isNotEmpty) {
+      for (final e in unknownEvents) {
+        await e.song.load();
+        final songGenre = e.song.value?.genre;
+        if (songGenre != null && songGenre != 'Unknown' && songGenre.isNotEmpty) {
+          counts[songGenre] = (counts[songGenre] ?? 0) + 1;
+        }
+      }
     }
     return counts;
   }
@@ -141,6 +159,39 @@ class DbService {
     return sorted.take(limit).toList();
   }
 
+  Future<List<MapEntry<Song, int>>> topSongsForRange(
+      DateTime start, DateTime end,
+      {int limit = 5}) async {
+    final events = await playEvents
+        .filter()
+        .startedAtBetween(start, end)
+        .findAll();
+
+    // Map title/artist combo to count to handle cases where songs might have been deleted/re-indexed
+    final counts = <String, int>{}; 
+    for (final e in events) {
+      final key = "${e.songTitle}|${e.artist}";
+      counts[key] = (counts[key] ?? 0) + 1;
+    }
+
+    final sortedKeys = counts.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    
+    final result = <MapEntry<Song, int>>[];
+    for (final entry in sortedKeys.take(limit)) {
+      final parts = entry.key.split('|');
+      final title = parts[0];
+      final artist = parts[1];
+      
+      final song = await songs.filter().titleEqualTo(title).and().artistEqualTo(artist).findFirst();
+      if (song != null) {
+        result.add(MapEntry(song, entry.value));
+      }
+    }
+    return result;
+  }
+
+
   // Legacy wrappers for backward compatibility
   Future<int> minutesForMonth(int year, int month) =>
       minutesForRange(DateTime(year, month), DateTime(year, month + 1));
@@ -153,6 +204,9 @@ class DbService {
   Future<List<MapEntry<String, int>>> topArtistsForMonth(int year, int month,
           {int limit = 5}) =>
       topArtistsForRange(DateTime(year, month), DateTime(year, month + 1), limit: limit);
+  Future<List<MapEntry<Song, int>>> topSongsForMonth(int year, int month,
+          {int limit = 5}) =>
+      topSongsForRange(DateTime(year, month), DateTime(year, month + 1), limit: limit);
 
   // ── Song interactions ────────────────────────────
 
@@ -180,6 +234,12 @@ class DbService {
   Future<void> updateSong(Song song) async {
     await _isar.writeTxn(() async {
       await songs.put(song);
+    });
+  }
+
+  Future<void> deleteSong(Id songId) async {
+    await _isar.writeTxn(() async {
+      await songs.delete(songId);
     });
   }
 
@@ -214,6 +274,11 @@ class DbService {
         await playlists.put(p);
       }
     });
+  }
+
+  Future<List<Song>> getSongsForPlaylist(Playlist p) async {
+    await p.songs.load();
+    return p.songs.toList();
   }
 
   Future<void> removeSongFromPlaylist(int playlistId, int songId) async {

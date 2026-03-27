@@ -47,8 +47,8 @@ class _UsernameScreenState extends State<UsernameScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: BeatSpillTheme.background,
-        leading: const BackButton(color: BeatSpillTheme.textSecondary),
+        backgroundColor: BopTheme.background,
+        leading: const BackButton(color: BopTheme.textSecondary),
       ),
       body: Padding(
         padding: const EdgeInsets.all(32),
@@ -69,12 +69,12 @@ class _UsernameScreenState extends State<UsernameScreen> {
             TextField(
               controller: _controller,
               autofocus: true,
-              style: const TextStyle(color: BeatSpillTheme.textPrimary),
+              style: const TextStyle(color: BopTheme.textPrimary),
               decoration: InputDecoration(
                 hintText: 'your_username',
-                hintStyle: const TextStyle(color: BeatSpillTheme.textMuted),
+                hintStyle: const TextStyle(color: BopTheme.textMuted),
                 filled: true,
-                fillColor: BeatSpillTheme.surfaceAlt,
+                fillColor: BopTheme.surfaceAlt,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                   borderSide: BorderSide.none,
@@ -86,7 +86,7 @@ class _UsernameScreenState extends State<UsernameScreen> {
             Text(
               'Keep it fun — this shows up in your Wrapped recap',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: BeatSpillTheme.textMuted,
+                color: BopTheme.textMuted,
               ),
             ),
             const Spacer(),

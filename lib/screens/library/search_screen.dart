@@ -124,13 +124,15 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                       ),
                     ),
                     if (_query.isNotEmpty)
-                      GestureDetector(
+                      InkWell(
                         onTap: () {
                           _controller.clear();
                           setState(() => _query = '');
                         },
-                        child: const Icon(Icons.close,
-                            color: Colors.black54, size: 16),
+                        child: const Padding(
+                          padding: EdgeInsets.all(8),
+                          child: Icon(Icons.close, color: Colors.black54, size: 16),
+                        ),
                       ),
                   ],
                 ),
@@ -143,10 +145,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   // ── Genre detail header ─────────────
                   Row(
                     children: [
-                      GestureDetector(
+                      InkWell(
                         onTap: () => setState(() => _selectedGenre = null),
-                        child: const Icon(Icons.arrow_back,
-                            color: BeatSpillTheme.textPrimary, size: 20),
+                        child: const Padding(
+                          padding: EdgeInsets.all(8),
+                          child: Icon(Icons.arrow_back,
+                              color: BopTheme.textPrimary, size: 20),
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Text(_selectedGenre!,
@@ -168,7 +173,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                         return const Padding(
                           padding: EdgeInsets.all(32),
                           child: Text('No songs in this genre',
-                              style: TextStyle(color: BeatSpillTheme.textMuted)),
+                              style: TextStyle(color: BopTheme.textMuted)),
                         );
                       }
                       return Column(
@@ -199,14 +204,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                             ),
                             title: Text(song.title,
                                 style: const TextStyle(
-                                    color: BeatSpillTheme.textPrimary,
+                                    color: BopTheme.textPrimary,
                                     fontWeight: FontWeight.w600,
                                     fontSize: 13),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis),
                             subtitle: Text(song.artist,
                                 style: const TextStyle(
-                                    color: BeatSpillTheme.textSecondary, fontSize: 11)),
+                                    color: BopTheme.textSecondary, fontSize: 11)),
                             onTap: () {
                               ref
                                   .read(playerProvider.notifier)
@@ -256,16 +261,16 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                       final sortedGenres = genreMap.entries.toList()
                         ..sort((a, b) => b.value.length.compareTo(a.value.length));
 
-                      final playlists = playlistsAsync.valueOrNull ?? [];
-                      final totalCards = sortedGenres.length + playlists.length;
+                      // Filter to show ONLY Genres
+                      final totalCards = sortedGenres.length;
 
                       if (totalCards == 0) {
                         return const Padding(
                           padding: EdgeInsets.all(32),
                           child: Text(
-                            'No genres or playlists found.\nCreate a playlist or edit song metadata.',
+                            'No genres found.\nEdit song metadata to see categories.',
                             textAlign: TextAlign.center,
-                            style: TextStyle(color: BeatSpillTheme.textMuted),
+                            style: TextStyle(color: BopTheme.textMuted),
                           ),
                         );
                       }
@@ -281,26 +286,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                         ),
                         itemCount: totalCards,
                         itemBuilder: (context, index) {
-                          if (index < playlists.length) {
-                            // Render Playlist Card
-                            final playlist = playlists[index];
-                            final artSong = playlist.songs.firstWhere(
-                              (s) => s.artBytes != null && s.artBytes!.isNotEmpty,
-                              orElse: () => Song()..title = playlist.name, // dummy
-                            );
-                            return _GenreCard(
-                              name: playlist.name,
-                              color: _colorForGenre(playlist.name), // random stable color based on name
-                              artSong: artSong.artBytes != null ? artSong : null,
-                              songCount: playlist.songs.length,
-                              onTap: () => showPlaylistDetails(context, ref, playlist),
-                            );
-                          }
-
                           // Render Genre Card
-                          final genreIndex = index - playlists.length;
-                          final genre = sortedGenres[genreIndex].key;
-                          final genreSongs = sortedGenres[genreIndex].value;
+                          final genre = sortedGenres[index].key;
+                          final genreSongs = sortedGenres[index].value;
+                          
                           // Find first song with album art for this genre
                           final artSong = genreSongs.cast<Song?>().firstWhere(
                             (s) => s!.artBytes != null && s.artBytes!.isNotEmpty,
@@ -326,7 +315,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                         6,
                         (_) => Container(
                           decoration: BoxDecoration(
-                            color: BeatSpillTheme.surfaceAlt,
+                            color: BopTheme.surfaceAlt,
                             borderRadius: BorderRadius.circular(8),
                           ),
                         ),
@@ -484,7 +473,7 @@ class _SearchResults extends StatelessWidget {
             child: Padding(
               padding: EdgeInsets.all(32),
               child: Text('No local songs found',
-                  style: TextStyle(color: BeatSpillTheme.textMuted)),
+                  style: TextStyle(color: BopTheme.textMuted)),
             ),
           )
         else
@@ -505,7 +494,7 @@ class _SearchResults extends StatelessWidget {
                           gaplessPlayback: true,
                         )
                       : Container(
-                          color: BeatSpillTheme.surfaceAlt,
+                          color: BopTheme.surfaceAlt,
                           child: const Center(
                             child: Icon(Icons.music_note,
                                 color: Colors.white54, size: 18),
@@ -515,14 +504,14 @@ class _SearchResults extends StatelessWidget {
               ),
               title: Text(song.title,
                   style: const TextStyle(
-                      color: BeatSpillTheme.textPrimary,
+                      color: BopTheme.textPrimary,
                       fontWeight: FontWeight.w600,
                       fontSize: 13),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis),
               subtitle: Text(song.artist,
                   style: const TextStyle(
-                      color: BeatSpillTheme.textSecondary, fontSize: 11)),
+                      color: BopTheme.textSecondary, fontSize: 11)),
               onTap: () => onTap(song, entry.key),
             );
           }),
