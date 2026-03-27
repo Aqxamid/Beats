@@ -37,6 +37,7 @@ class _UsernameScreenState extends State<UsernameScreen> {
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('username', username);
+    await prefs.setBool('onboarded', true);
 
     if (mounted) {
       Navigator.pushReplacementNamed(context, '/scan');

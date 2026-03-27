@@ -95,7 +95,8 @@ class AuthScreen extends ConsumerWidget {
         // Save username and onboarding flag
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('username', account.displayName ?? 'User');
-        await prefs.setBool('has_onboarded', true);
+        await prefs.setString('username', account.displayName ?? 'User');
+        await prefs.setBool('onboarded', true);
 
         if (context.mounted) {
           Navigator.pushReplacementNamed(context, '/scan');

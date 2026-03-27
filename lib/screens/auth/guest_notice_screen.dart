@@ -48,7 +48,7 @@ class GuestNoticeScreen extends StatelessWidget {
                 onPressed: () async {
                   // Mark as onboarded so welcome screen won't show again
                   final prefs = await SharedPreferences.getInstance();
-                  await prefs.setBool('has_onboarded', true);
+                  await prefs.setBool('onboarded', true);
                   if (context.mounted) {
                     Navigator.pushReplacementNamed(context, '/scan');
                   }
