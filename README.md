@@ -1,6 +1,6 @@
 # Bop
 
-An offline-first music player for Android with on-device Wrapped recaps powered by flexible GGUF LLM support.
+An offline-first music player for Android with on-device Bop recaps powered by flexible GGUF LLM support.
 
 ## Features
 
