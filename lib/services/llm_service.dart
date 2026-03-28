@@ -479,7 +479,7 @@ class LlmService {
         : report.topArtistPlays > 20
             ? 'deeply'
             : 'consistently';
-    final timeVibe = _peakHourVibe(report.peakHour);
+    final timeVibe = _peakHourVibe(_parsePeakHour(report.peakHourLabel));
 
     // Fill-in format: model must continue the opening sentence in a vivid,
     // personality-driven voice. Facts only leak in as colour, not the point.
@@ -501,7 +501,7 @@ class LlmService {
         : report.topArtistPlays > 20
             ? 'deeply'
             : 'consistently';
-    final timeVibe = _peakHourVibe(report.peakHour);
+    final timeVibe = _peakHourVibe(_parsePeakHour(report.peakHourLabel));
 
     return 'Write a 2-sentence music personality vibe-check for ${report.periodLabel}. '
         'Speak directly to the listener in second person. '
@@ -522,6 +522,19 @@ class LlmService {
     if (hour >= 15 && hour < 18) return 'late-afternoon grind';
     if (hour >= 18 && hour < 21) return 'golden-hour wind-down';
     return 'late-night overthinker';
+  }
+
+  /// Parse a peakHourLabel like "11pm" or "12am" back to an int (0–23).
+  int _parsePeakHour(String label) {
+    try {
+      final lower = label.toLowerCase().trim();
+      final isAm = lower.contains('am');
+      final num = int.parse(lower.replaceAll(RegExp(r'[^0-9]'), ''));
+      if (isAm) return num == 12 ? 0 : num;
+      return num == 12 ? 12 : num + 12;
+    } catch (_) {
+      return 0;
+    }
   }
 
   Future<String> _saveAndReturnRecap(WrappedReport report, String result) async {
@@ -948,7 +961,7 @@ class LlmService {
   Future<String> generateListeningPersonality(WrappedReport report) async {
     await _loadFuture;
     final topGenre = _getTopGenre(report);
-    final timeVibe = _peakHourVibe(report.peakHour);
+    final timeVibe = _peakHourVibe(_parsePeakHour(report.peakHourLabel));
     final loyalty = report.topArtistPlays > 50
         ? 'obsessive'
         : report.topArtistPlays > 20
