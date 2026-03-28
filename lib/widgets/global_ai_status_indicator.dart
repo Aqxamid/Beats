@@ -17,6 +17,10 @@ class _GlobalAiStatusIndicatorState extends State<GlobalAiStatusIndicator> {
   void initState() {
     super.initState();
     LlmService.instance.modelStatus.addListener(_onStatusChanged);
+    // Check initial state
+    if (LlmService.instance.modelStatus.value != null) {
+      _onStatusChanged();
+    }
   }
 
   @override
@@ -31,9 +35,17 @@ class _GlobalAiStatusIndicatorState extends State<GlobalAiStatusIndicator> {
     if (status == null) return;
 
     final s = status.toLowerCase();
-    final isTransient = s.contains('complete') || s.contains('ready') || s.contains('sleeping');
+    // Broad list of terminal states that should auto-hide.
+    final isTerminal = s.contains('complete') || 
+                       s.contains('ready') || 
+                       s.contains('sleeping') || 
+                       s.contains('unloaded') || 
+                       s.contains('cleared') ||
+                       s.contains('error') ||
+                       s.contains('freed') ||
+                       s.contains('💤');
     
-    if (isTransient) {
+    if (isTerminal) {
       _dismissTimer?.cancel();
       _dismissTimer = Timer(const Duration(seconds: 5), () {
         if (mounted && LlmService.instance.modelStatus.value == status) {

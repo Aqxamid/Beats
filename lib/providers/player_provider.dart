@@ -216,10 +216,15 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       onPrevious: () => skipPrevious(),
     );
 
-    // Position stream
+    // Position stream - Throttled to reduce UI rebuild/lag
     _positionSub = _player.positionStream.listen((pos) {
       if (mounted) {
-        state = state.copyWith(position: pos);
+        // Only update if the song just started or if the position has progressed significantly (e.g., 500ms)
+        // or if we're near the end of the song. This prevents the constant tiny updates from lagging the UI.
+        final diff = (pos - state.position).abs();
+        if (diff.inMilliseconds >= 500 || pos.inMilliseconds < 500) {
+          state = state.copyWith(position: pos);
+        }
       }
     });
 

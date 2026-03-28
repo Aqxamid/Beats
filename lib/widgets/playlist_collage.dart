@@ -45,9 +45,11 @@ class PlaylistCollage extends StatelessWidget {
           child: s.artBytes != null && s.artBytes!.isNotEmpty
               ? Image.memory(
                   Uint8List.fromList(s.artBytes!),
+                  key: ValueKey('collage_single_${s.id}'),
                   fit: BoxFit.cover,
                   width: size,
                   height: size,
+                  gaplessPlayback: true,
                   cacheWidth: (size * 2).toInt(),
                   cacheHeight: (size * 2).toInt(),
                 )
@@ -73,7 +75,9 @@ class PlaylistCollage extends StatelessWidget {
             return s.artBytes != null && s.artBytes!.isNotEmpty
                 ? Image.memory(
                     Uint8List.fromList(s.artBytes!),
+                    key: ValueKey('collage_grid_${s.id}'),
                     fit: BoxFit.cover,
+                    gaplessPlayback: true,
                     cacheWidth: size.toInt(),
                     cacheHeight: size.toInt(),
                   )

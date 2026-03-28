@@ -10,18 +10,58 @@ import '../../widgets/mini_player.dart';
 import '../../widgets/animated_equalizer.dart';
 import '../../widgets/playlist_collage.dart';
 
-class SmartPlaylistScreen extends ConsumerWidget {
+class SmartPlaylistScreen extends ConsumerStatefulWidget {
   final SmartPlaylistData playlist;
 
   const SmartPlaylistScreen({super.key, required this.playlist});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SmartPlaylistScreen> createState() => _SmartPlaylistScreenState();
+}
+
+class _SmartPlaylistScreenState extends ConsumerState<SmartPlaylistScreen>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _playPauseController;
+
+  @override
+  void initState() {
+    super.initState();
+    _playPauseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+  }
+
+  @override
+  void handlePlayTapped(bool isPlaylistPlaying, List<Song> songs) {
+    if (isPlaylistPlaying) {
+      ref.read(playerProvider.notifier).togglePlayPause();
+    } else if (songs.isNotEmpty) {
+      ref.read(playerProvider.notifier).playQueue(songs, startIndex: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _playPauseController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final playerState = ref.watch(playerProvider);
-    final songs = playlist.songs;
-    
+    final songs = widget.playlist.songs;
+
     // Check if this playlist is currently playing
-    final isPlaylistPlaying = songs.any((s) => s.id == playerState.currentSong?.id) && playerState.isPlaying;
+    final isPlaylistPlaying =
+        songs.any((s) => s.id == playerState.currentSong?.id) &&
+            playerState.isPlaying;
+
+    if (isPlaylistPlaying) {
+      _playPauseController.forward();
+    } else {
+      _playPauseController.reverse();
+    }
 
     return Scaffold(
       backgroundColor: BopTheme.background,
@@ -50,7 +90,7 @@ class SmartPlaylistScreen extends ConsumerWidget {
                               onPressed: () => Navigator.pop(context),
                             ),
                           ),
-                          // Dynamically show 2x2 collage instead of brain/psychology icon
+                          // Collage art
                           Container(
                             width: 180,
                             height: 180,
@@ -59,7 +99,10 @@ class SmartPlaylistScreen extends ConsumerWidget {
                               borderRadius: BorderRadius.circular(12),
                               boxShadow: [
                                 BoxShadow(
-                                  color: (playlist.isAiGenerated ? BopTheme.green : Colors.blueGrey).withOpacity(0.3),
+                                  color: (widget.playlist.isAiGenerated
+                                          ? BopTheme.green
+                                          : Colors.blueGrey)
+                                      .withOpacity(0.3),
                                   blurRadius: 24,
                                   offset: const Offset(0, 0),
                                 ),
@@ -73,34 +116,36 @@ class SmartPlaylistScreen extends ConsumerWidget {
                           ),
                           const SizedBox(height: 16),
                           Text(
-                            playlist.name,
-                            style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800),
+                            widget.playlist.name,
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 24,
+                                fontWeight: FontWeight.w800),
                             textAlign: TextAlign.center,
                           ),
                           Text(
-                            playlist.isAiGenerated ? 'AI-Curated Playlist' : 'Smart Playlist',
-                            style: const TextStyle(color: BopTheme.textSecondary, fontSize: 13),
+                            widget.playlist.isAiGenerated
+                                ? 'AI-Curated Playlist'
+                                : 'Smart Playlist',
+                            style: const TextStyle(
+                                color: BopTheme.textSecondary, fontSize: 13),
                           ),
                           const SizedBox(height: 4),
                           Text(
                             '${songs.length} songs',
-                            style: const TextStyle(color: BopTheme.textMuted, fontSize: 11),
+                            style: const TextStyle(
+                                color: BopTheme.textMuted, fontSize: 11),
                           ),
                           const SizedBox(height: 16),
-                          // Play Button
+                          // Animated Play Button
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 24),
                             child: Row(
                               children: [
                                 InkWell(
                                   borderRadius: BorderRadius.circular(26),
-                                  onTap: () {
-                                    if (isPlaylistPlaying) {
-                                      ref.read(playerProvider.notifier).togglePlayPause();
-                                    } else if (songs.isNotEmpty) {
-                                      ref.read(playerProvider.notifier).playQueue(songs, startIndex: 0);
-                                    }
-                                  },
+                                  onTap: () =>
+                                      handlePlayTapped(isPlaylistPlaying, songs),
                                   child: Container(
                                     width: 52,
                                     height: 52,
@@ -108,10 +153,13 @@ class SmartPlaylistScreen extends ConsumerWidget {
                                       color: BopTheme.green,
                                       shape: BoxShape.circle,
                                     ),
-                                    child: Icon(
-                                      isPlaylistPlaying ? Icons.pause : Icons.play_arrow,
-                                      color: Colors.black,
-                                      size: 32,
+                                    child: Center(
+                                      child: AnimatedIcon(
+                                        icon: AnimatedIcons.play_pause,
+                                        progress: _playPauseController,
+                                        color: Colors.black,
+                                        size: 32,
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -131,7 +179,24 @@ class SmartPlaylistScreen extends ConsumerWidget {
                       final isPlaying = playerState.currentSong?.id == song.id;
 
                       return ListTile(
-                        leading: isPlaying ? AnimatedEqualizer(color: BopTheme.green, size: 16) : null,
+                        contentPadding:
+                            const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                        leading: SizedBox(
+                          width: 24,
+                          child: Center(
+                            child: isPlaying
+                                ? isPlaying && playerState.isPlaying
+                                    ? const AnimatedEqualizer(
+                                        color: BopTheme.green, size: 16)
+                                    : const Icon(Icons.equalizer,
+                                        color: BopTheme.green, size: 16)
+                                : Text(
+                                    '${index + 1}',
+                                    style: const TextStyle(
+                                        color: BopTheme.textMuted, fontSize: 12),
+                                  ),
+                          ),
+                        ),
                         title: Text(
                           song.title,
                           style: TextStyle(
@@ -144,14 +209,15 @@ class SmartPlaylistScreen extends ConsumerWidget {
                         ),
                         subtitle: Text(
                           song.artist,
-                          style: const TextStyle(color: BopTheme.textSecondary, fontSize: 12),
+                          style: const TextStyle(
+                              color: BopTheme.textSecondary, fontSize: 12),
                           maxLines: 1,
                         ),
-                        trailing: isPlaying && playerState.isPlaying
-                          ? AnimatedEqualizer(color: BopTheme.green, size: 16)
-                          : null,
+                        trailing: null,
                         onTap: () {
-                          ref.read(playerProvider.notifier).playQueue(songs, startIndex: index);
+                          ref
+                              .read(playerProvider.notifier)
+                              .playQueue(songs, startIndex: index);
                         },
                       );
                     },

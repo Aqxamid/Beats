@@ -51,9 +51,11 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
   @override
   void initState() {
     super.initState();
+    final isPlaying = ref.read(playerProvider).isPlaying;
     _playPauseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
+      value: isPlaying ? 1.0 : 0.0,
     );
     _pageController = PageController(initialPage: ref.read(playerProvider).currentIndex);
     _extractDominant(widget.song);
