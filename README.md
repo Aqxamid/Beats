@@ -11,7 +11,6 @@ An offline-first music player for Android with on-device Bop recaps powered by f
 - Album art extracted and cached from audio file metadata
 
 ### 🎤 Synced Lyrics
-// Matches Bop_full_ui_v2 Auth tab exactly.
 - Fetches synced lyrics from lrclib.net automatically
 - Lyrics scroll in real-time with playback, centered on the active line
 - Tap any lyric line to seek to that timestamp
@@ -28,7 +27,6 @@ An offline-first music player for Android with on-device Bop recaps powered by f
 - **"Bold Rendition" Design**: A premium 8-card swipeable slideshow featuring dynamic organic/geometric hybrids and floating card aesthetics.
 - **Dual-Engine AI**: 
     - **Local GGUF (Mobile AI)**: Full support for on-device LLMs (e.g., TinyLlama) via `llama_cpp_dart`.
-    - **Gemini 1.5 Flash**: Lightning-fast fallback for personalized music personality analysis.
 - **Automated Delivery**:
     - **Smart Triggers**: Recaps only generate once a month to save resources.
     - **End-of-Month Notification**: Automatically "ninja" generates the monthly recap on the day before the last day of the month and triggers a system notification.
