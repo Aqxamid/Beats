@@ -24,7 +24,7 @@ An offline-first music player for Android with on-device Bop recaps powered by f
 - **Top artists** ranked by play count
 
 ### 🎁 Wrapped Recaps
-- **"Bold Rendition" Design**: A premium 8-card swipeable slideshow featuring dynamic organic/geometric hybrids and floating card aesthetics.
+- **"Bold Rendition" Design(NOT FIXED)**: A premium 8-card swipeable slideshow featuring dynamic organic/geometric hybrids and floating card aesthetics.
 - **Dual-Engine AI**: 
     - **Local GGUF (Mobile AI)**: Full support for on-device LLMs (e.g., TinyLlama) via `llama_cpp_dart`.
 - **Automated Delivery**:
