@@ -244,7 +244,7 @@ class _WrappedSlideshowScreenState extends ConsumerState<WrappedSlideshowScreen>
         _VibeMapCard(report: r, isBold: isBold),
         _TimeInsightCard(report: r, isBold: isBold),
         if (hasPersonality) _PersonalityInsightCard(report: r, isBold: isBold),
-        if (hasMinutes && r.isAiGenerated) _LLMRecapCard(report: r, isBold: isBold),
+        if (hasMinutes) _LLMRecapCard(report: r, isBold: isBold),
       ],
       _ShareCard(report: r, isBold: isBold),
     ];

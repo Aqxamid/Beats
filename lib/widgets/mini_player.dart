@@ -10,6 +10,7 @@ import 'package:text_scroll/text_scroll.dart';
 import '../theme/app_theme.dart';
 import '../providers/player_provider.dart';
 import '../screens/player/now_playing_screen.dart';
+import '../services/llm_service.dart';
 
 /// Caches extracted dominant color per song id to avoid re-computing.
 final _colorCache = <int, Color>{};
@@ -74,26 +75,26 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
         : 0.0;
 
     return GestureDetector(
-      onVerticalDragEnd: (details) {
-        if (details.primaryVelocity != null && details.primaryVelocity! < 0) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => NowPlayingScreen(song: song)),
-          );
-        }
-      },
-      child: InkWell(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => NowPlayingScreen(song: song),
-            ),
-          );
-        },
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          onVerticalDragEnd: (details) {
+            if (details.primaryVelocity != null && details.primaryVelocity! < 0) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => NowPlayingScreen(song: song)),
+              );
+            }
+          },
+          child: InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => NowPlayingScreen(song: song),
+                ),
+              );
+            },
+            borderRadius: BorderRadius.circular(14),
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
             gradient: LinearGradient(

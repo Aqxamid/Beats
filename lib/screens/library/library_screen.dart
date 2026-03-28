@@ -21,11 +21,13 @@ import 'artist_screen.dart';
 import 'playlist_screen.dart';
 import './liked_songs_screen.dart';
 import './metadata_editor_screen.dart';
+import '../../services/metadata_service.dart';
 
 // Filter state
 enum LibraryFilter { all, playlists, artists, albums }
 final libraryFilterProvider = StateProvider<LibraryFilter>((ref) => LibraryFilter.all);
 final librarySelectionProvider = StateProvider<Set<int>>((ref) => {});
+final libraryPlaylistSelectionProvider = StateProvider<Set<int>>((ref) => {});
 
 class LibraryScreen extends ConsumerWidget {
   const LibraryScreen({super.key});
@@ -35,8 +37,10 @@ class LibraryScreen extends ConsumerWidget {
     final likedSongs = ref.watch(likedSongsProvider);
     final allSongs = ref.watch(allSongsProvider);
     final selection = ref.watch(librarySelectionProvider);
+    final playlistSelection = ref.watch(libraryPlaylistSelectionProvider);
     final filter = ref.watch(libraryFilterProvider);
     final inSelectionMode = selection.isNotEmpty;
+    final inPlaylistSelectionMode = playlistSelection.isNotEmpty;
 
     return Column(
       children: [
@@ -50,10 +54,11 @@ class LibraryScreen extends ConsumerWidget {
                     children: [
                       const SizedBox(height: 16),
                       // ── Header + selection actions ──────
-                      if (inSelectionMode)
+                      if (inSelectionMode && filter != LibraryFilter.playlists)
                         _SelectionHeader(
                           count: selection.length,
                           onClear: () => ref.read(librarySelectionProvider.notifier).state = {},
+                          onAutoFill: () => _showBulkAutoFillDialog(context, ref, selection.toList()),
                           onAddToPlaylist: () => _showMultiPlaylistSelector(context, ref, selection.toList()),
                           onDelete: () async {
                             final confirm = await _showBulkRemoveDialog(context, selection.length);
@@ -74,6 +79,20 @@ class LibraryScreen extends ConsumerWidget {
                               ref.invalidate(allSongsProvider);
                               ref.invalidate(likedSongsProvider);
                               ref.invalidate(recentSongsProvider);
+                            }
+                          },
+                        )
+                      else if (inPlaylistSelectionMode && filter == LibraryFilter.playlists)
+                        _SelectionHeader(
+                          count: playlistSelection.length,
+                          onClear: () => ref.read(libraryPlaylistSelectionProvider.notifier).state = {},
+                          onDelete: () async {
+                            final confirm = await _showBulkRemoveDialog(context, playlistSelection.length, isPlaylist: true);
+                            if (confirm == true) {
+                              for (final id in playlistSelection) {
+                                await DbService.instance.deletePlaylist(id);
+                              }
+                              ref.read(libraryPlaylistSelectionProvider.notifier).state = {};
                             }
                           },
                         )
@@ -180,13 +199,42 @@ class LibraryScreen extends ConsumerWidget {
                         final p = list[i];
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 8),
-                          child: ListTile(
-                            leading: PlaylistCoverWidget(playlist: p, size: 48),
-                            title: Text(p.name, style: const TextStyle(color: Colors.white)),
-                            subtitle: Text('${p.songs.length} songs',
-                                style: const TextStyle(color: BopTheme.textSecondary, fontSize: 12)),
-                            onTap: () => showPlaylistDetails(context, ref, p),
-                            onLongPress: () => _confirmDeletePlaylist(context, ref, p),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: playlistSelection.contains(p.id) ? BopTheme.green.withOpacity(0.1) : Colors.transparent,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: ListTile(
+                              leading: PlaylistCoverWidget(playlist: p, size: 48),
+                              title: Text(p.name, style: const TextStyle(color: Colors.white)),
+                              subtitle: Text('${p.songs.length} songs',
+                                  style: const TextStyle(color: BopTheme.textSecondary, fontSize: 12)),
+                              trailing: inPlaylistSelectionMode
+                                  ? Icon(
+                                      playlistSelection.contains(p.id) ? Icons.check_circle : Icons.radio_button_unchecked,
+                                      color: playlistSelection.contains(p.id) ? BopTheme.green : BopTheme.textSecondary,
+                                      size: 20,
+                                    )
+                                  : null,
+                              onTap: () {
+                                if (inPlaylistSelectionMode) {
+                                  final newSet = Set<int>.from(playlistSelection);
+                                  if (newSet.contains(p.id)) {
+                                    newSet.remove(p.id);
+                                  } else {
+                                    newSet.add(p.id);
+                                  }
+                                  ref.read(libraryPlaylistSelectionProvider.notifier).state = newSet;
+                                } else {
+                                  showPlaylistDetails(context, ref, p);
+                                }
+                              },
+                              onLongPress: () {
+                                if (!inPlaylistSelectionMode) {
+                                  ref.read(libraryPlaylistSelectionProvider.notifier).state = {p.id};
+                                }
+                              },
+                            ),
                           ),
                         );
                       },
@@ -573,13 +621,15 @@ class _SelectionHeader extends StatelessWidget {
   final int count;
   final VoidCallback onClear;
   final VoidCallback onDelete;
-  final VoidCallback onAddToPlaylist;
+  final VoidCallback? onAddToPlaylist;
+  final VoidCallback? onAutoFill;
 
   const _SelectionHeader({
     required this.count,
     required this.onClear,
     required this.onDelete,
-    required this.onAddToPlaylist,
+    this.onAddToPlaylist,
+    this.onAutoFill,
   });
 
   @override
@@ -597,12 +647,21 @@ class _SelectionHeader extends StatelessWidget {
               style: const TextStyle(
                   color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
           const Spacer(),
-          IconButton(
-            icon: const Icon(Icons.playlist_add, color: Colors.white),
-            onPressed: onAddToPlaylist,
-          ),
+          if (onAutoFill != null)
+            IconButton(
+              icon: const Icon(Icons.auto_fix_high, color: BopTheme.green),
+              tooltip: 'Auto-fill Metadata',
+              onPressed: onAutoFill,
+            ),
+          if (onAddToPlaylist != null)
+            IconButton(
+              icon: const Icon(Icons.playlist_add, color: Colors.white),
+              tooltip: 'Add to Playlist',
+              onPressed: onAddToPlaylist,
+            ),
           IconButton(
             icon: const Icon(Icons.delete_outline, color: BopTheme.red),
+            tooltip: 'Remove',
             onPressed: onDelete,
           ),
         ],
@@ -611,15 +670,17 @@ class _SelectionHeader extends StatelessWidget {
   }
 }
 
-Future<bool?> _showBulkRemoveDialog(BuildContext context, int count) {
+Future<bool?> _showBulkRemoveDialog(BuildContext context, int count, {bool isPlaylist = false}) {
   return showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
       backgroundColor: const Color(0xFF282828),
-      title: Text('Remove $count Songs?', style: const TextStyle(color: Colors.white)),
-      content: const Text(
-          'This will permanently delete the selected files from your device and library.',
-          style: TextStyle(color: Colors.white70)),
+      title: Text('Remove $count ${isPlaylist ? 'Playlists' : 'Songs'}?', style: const TextStyle(color: Colors.white)),
+      content: Text(
+          isPlaylist 
+              ? 'This will permanently delete the selected playlists from your library.'
+              : 'This will permanently delete the selected files from your device and library.',
+          style: const TextStyle(color: Colors.white70)),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(ctx, false),
@@ -633,6 +694,24 @@ Future<bool?> _showBulkRemoveDialog(BuildContext context, int count) {
     ),
   );
 }
+
+Future<void> _showBulkAutoFillDialog(BuildContext context, WidgetRef ref, List<int> songIds) async {
+  final List<Song> selectedSongs = [];
+  for (final id in songIds) {
+    final s = await DbService.instance.songs.get(id);
+    if (s != null) selectedSongs.add(s);
+  }
+
+  if (context.mounted && selectedSongs.isNotEmpty) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MetadataEditorScreen(songs: selectedSongs),
+      ),
+    );
+  }
+}
+
 
 class _LibrarySongMenu extends ConsumerWidget {
   final Song song;
@@ -734,7 +813,7 @@ class _LibrarySongMenu extends ConsumerWidget {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => MetadataEditorScreen(song: song),
+                  builder: (_) => MetadataEditorScreen(songs: [song]),
                 ),
               );
             },

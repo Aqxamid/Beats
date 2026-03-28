@@ -11,6 +11,8 @@ import '../../models/playlist.dart';
 import '../../widgets/song_option_widgets.dart';
 import '../player/now_playing_screen.dart';
 import 'library_screen.dart';
+import '../../services/db_service.dart';
+import 'metadata_editor_screen.dart';
 
 // ── Genre color palette ────────────────────────────────────────
 const _genreColors = <String, Color>{
@@ -212,6 +214,20 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                             subtitle: Text(song.artist,
                                 style: const TextStyle(
                                     color: BopTheme.textSecondary, fontSize: 11)),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.more_vert, color: BopTheme.textSecondary, size: 20),
+                              onPressed: () {
+                                showModalBottomSheet(
+                                  context: context,
+                                  isScrollControlled: true,
+                                  backgroundColor: const Color(0xFF282828),
+                                  shape: const RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                                  ),
+                                  builder: (_) => _SearchSongMenu(song: song),
+                                );
+                              },
+                            ),
                             onTap: () {
                               ref
                                   .read(playerProvider.notifier)
@@ -519,3 +535,116 @@ class _SearchResults extends StatelessWidget {
     );
   }
 }
+
+class _SearchSongMenu extends ConsumerWidget {
+  final Song song;
+  const _SearchSongMenu({required this.song});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: SizedBox(
+                    width: 44,
+                    height: 44,
+                    child: song.artBytes != null
+                        ? Image.memory(
+                            Uint8List.fromList(song.artBytes!),
+                            fit: BoxFit.cover,
+                            cacheWidth: 88,
+                            cacheHeight: 88,
+                          )
+                        : const ColoredBox(color: Color(0xFFC0392B)),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(song.title,
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
+                      Text(song.artist,
+                          style: const TextStyle(
+                              color: BopTheme.textSecondary,
+                              fontSize: 12)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(color: Color(0xFF333333), height: 1),
+          ListTile(
+            leading: Icon(
+                song.isLiked ? Icons.favorite : Icons.favorite_border,
+                color: song.isLiked ? BopTheme.green : BopTheme.textSecondary,
+                size: 20),
+            title: Text(song.isLiked ? 'Unlike' : 'Like',
+                style: const TextStyle(color: Colors.white, fontSize: 14)),
+            onTap: () async {
+              Navigator.pop(context);
+              await DbService.instance.toggleLike(song.id);
+              ref.invalidate(likedSongsProvider);
+              ref.invalidate(allSongsProvider);
+              ref.read(playerProvider.notifier).refreshCurrentSong();
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.playlist_add, color: BopTheme.textSecondary, size: 20),
+            title: const Text('Add to playlist', style: TextStyle(color: Colors.white, fontSize: 14)),
+            onTap: () {
+              Navigator.pop(context);
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: const Color(0xFF1E1E1E),
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                ),
+                builder: (_) => PlaylistSelector(song: song),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.queue_music, color: BopTheme.textSecondary, size: 20),
+            title: const Text('Add to queue', style: TextStyle(color: Colors.white, fontSize: 14)),
+            onTap: () {
+              Navigator.pop(context);
+              ref.read(playerProvider.notifier).addToQueue(song);
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Added to queue')));
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.edit_note, color: BopTheme.textSecondary, size: 20),
+            title: const Text('Edit metadata', style: TextStyle(color: Colors.white, fontSize: 14)),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => MetadataEditorScreen(songs: [song]),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
+  }
+}
+

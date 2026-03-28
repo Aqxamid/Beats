@@ -30,6 +30,8 @@ class LlmService {
   static const _modelPathPref = 'llm_model_path';
   static const _aiEnabledPref = 'llm_ai_enabled';
   static const _modelNamePref = 'llm_model_name';
+  static const _playlistCachePref = 'cached_smart_playlists';
+  static const _playlistUpdatePref = 'last_playlist_update_date';
 
   String _cachedApiKey = '';
   String _modelPath = '';
@@ -98,11 +100,11 @@ class LlmService {
       if (path.isNotEmpty) {
         await loadModel(path);
       } else {
-        modelStatus.value = "No model file selected";
+        modelStatus.value = null;
       }
     } else {
       await disposeModel();
-      modelStatus.value = "AI Sleeping (RAM freed)";
+      modelStatus.value = "AI Sleeping (RAM Freed) 💤";
     }
   }
 
@@ -152,7 +154,7 @@ class LlmService {
     await disposeModel();
 
     try {
-      modelStatus.value = "Loading model into RAM...";
+      modelStatus.value = "AI: Loading LLM model into RAM...";
       print('[LLM] Attempting to load model from: ${modelFile.path}');
       _llama = LlamaController();
       await _llama!.loadModel(modelPath: modelFile.path);
@@ -160,7 +162,12 @@ class LlmService {
       _modelAvailable = true;
       _modelLoaded = true;
       _modelPath = modelFile.path;
-      modelStatus.value = "Model Ready (Local AI Active)";
+      modelStatus.value = "AI: Model Ready (Local AI Active)!";
+      Future.delayed(const Duration(seconds: 3), () {
+        if (modelStatus.value != null && modelStatus.value!.contains('Ready')) {
+          modelStatus.value = null;
+        }
+      });
       print('[LLM] Model loaded successfully');
     } catch (e) {
       final errorStr = e.toString();
@@ -317,41 +324,136 @@ class LlmService {
     return related.contains(songVibe) ? 0.6 : 0.1;
   }
 
-  /// Scores and sorts songs for a playlist. Pure Dart — fast, no LLM call here.
-  List<Song> _curateByScore(List<Song> songs, String targetVibe, {int limit = 20}) {
+  /// Refined Hybrid Discovery Algo
+  List<Song> _curateByScore(List<Song> candidates, String targetVibe, 
+      {String targetGenre = '', int limit = 20, bool isAi = false}) {
     final now = DateTime.now();
-    final maxPlays = songs.fold<int>(1, (m, s) => s.playCount > m ? s.playCount : m);
+    final maxPlays = candidates.fold<int>(1, (m, s) => s.playCount > m ? s.playCount : m);
 
-    final scored = songs.map((song) {
-      // 1. Play loyalty (0–1)
+    final scored = candidates.map((song) {
       final playScore = song.playCount / maxPlays;
-
-      // 2. Recency momentum (0–1, decays over 30 days)
       double freshScore = 0.0;
       if (song.lastPlayedAt != null) {
         final daysAgo = now.difference(song.lastPlayedAt!).inDays;
         freshScore = (1.0 - (daysAgo / 30.0)).clamp(0.0, 1.0);
       }
 
-      // 3. Vibe match (0, 0.6, or 1.0)
       final moodScore = _vibeMatchScore(song, targetVibe);
+      final isExactGenre = targetGenre.isNotEmpty && song.genre.toLowerCase().contains(targetGenre.toLowerCase());
 
-      // Weighted composite — mood is the dominant signal for AI playlists
-      final total = (moodScore * 0.55) + (playScore * 0.25) + (freshScore * 0.20);
+      double total;
+      if (isAi) {
+        // AI AGGRESSIVE HYBRID (Discovery-focused)
+        // 20% Genre Anchor, 60% Vibe Match, 20% Habits (Play + Fresh)
+        total = (isExactGenre ? 0.20 : 0.0) + (moodScore * 0.60) + ((playScore * 0.10) + (freshScore * 0.10));
+        
+        // Add tiny deterministic noise based on Song ID to prevent identical ties
+        final noise = (song.id % 100) / 1000.0;
+        total += noise;
+      } else {
+        // ALGO STANDARD (Loyalty-focused)
+        // Strictly Genre match is implicitly 1.0 because 'candidates' are genre-filtered
+        total = (moodScore * 0.1) + (playScore * 0.5) + (freshScore * 0.4);
+      }
       return MapEntry(song, total);
-    }).toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
+    }).toList();
 
-    // Take the top scored songs, then lightly shuffle the top half
-    // to avoid a perfectly identical list every time.
-    final topN = scored.take(limit * 2).map((e) => e.key).toList();
-    if (topN.length > 4) {
-      final half = (topN.length / 2).ceil();
-      final top = topN.sublist(0, half)..shuffle();
-      final rest = topN.sublist(half);
-      return [...top, ...rest].take(limit).toList();
+    // Sort by score
+    scored.sort((a, b) => b.value.compareTo(a.value));
+
+    if (isAi) {
+      // For AI: Take the top 3x candidates and pick 'limit' randomly from them
+      // This ensures the AI isn't just a static re-sort of the Algo list.
+      final pool = scored.take(limit * 3).map((e) => e.key).toList();
+      if (pool.length > limit) {
+        pool.shuffle();
+        return pool.take(limit).toList();
+      }
     }
-    return topN.take(limit).toList();
+
+    return scored.take(limit).map((e) => e.key).toList();
+  }
+
+  bool _isSameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
+  String _normalizeGenre(String g) => g
+      .trim()
+      .split(' ')
+      .map((w) => w.isEmpty ? '' : w[0].toUpperCase() + w.substring(1).toLowerCase())
+      .join(' ');
+
+  Future<void> _savePlaylistsToCache() async {
+    if (_cachedPlaylists == null) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final List<Map<String, dynamic>> data = _cachedPlaylists!.map((p) => {
+        'name': p.name,
+        'songIds': p.songs.map((s) => s.id).toList(),
+        'isAi': p.isAiGenerated,
+      }).toList();
+      await prefs.setString(_playlistCachePref, jsonEncode(data));
+      await prefs.setString(_playlistUpdatePref, _lastPlaylistUpdate!.toIso8601String());
+    } catch (e) {
+      print('[LLM] Failed to save playlist cache: $e');
+    }
+  }
+
+  Future<void> _loadPlaylistsFromCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final json = prefs.getString(_playlistCachePref);
+      final dateStr = prefs.getString(_playlistUpdatePref);
+      if (json == null || dateStr == null) return;
+
+      final List<dynamic> list = jsonDecode(json);
+      final List<SmartPlaylistData> result = [];
+      for (var item in list) {
+        final List<int> ids = List<int>.from(item['songIds']);
+        final List<Song> songs = [];
+        for (final id in ids) {
+          final s = await DbService.instance.songs.get(id);
+          if (s != null) songs.add(s);
+        }
+        if (songs.isNotEmpty) {
+          result.add(SmartPlaylistData(
+            name: item['name'],
+            songs: songs,
+            isAiGenerated: item['isAi'] ?? false,
+          ));
+        }
+      }
+      _cachedPlaylists = result;
+      _lastPlaylistUpdate = DateTime.parse(dateStr);
+      print('[LLM] Loaded ${result.length} playlists from cache');
+    } catch (e) {
+      print('[LLM] Failed to load playlist cache: $e');
+    }
+  }
+
+  Future<void> checkAndAutoGenerateMonthlyRecap() async {
+    final now = DateTime.now();
+    final tomorrow = now.add(const Duration(days: 1));
+    final dayAfterTomorrow = now.add(const Duration(days: 2));
+    final isDayBeforeLast = dayAfterTomorrow.month != now.month && tomorrow.month == now.month;
+    final isLastDay = tomorrow.month != now.month;
+
+    if (!isDayBeforeLast && !isLastDay) return;
+
+    final monthLabel = _getMonthLabel(now);
+    final exists = await DbService.instance.wrappedReports
+        .filter()
+        .periodLabelEqualTo(monthLabel)
+        .findFirst();
+    
+    if (exists != null && exists.llmRecap.isNotEmpty) return;
+    print('[LLM] Performing end-of-month auto-generation for $monthLabel...');
+  }
+
+  String _getMonthLabel(DateTime d) {
+    const months = ['January', 'February', 'March', 'April', 'May', 'June', 
+                   'July', 'August', 'September', 'October', 'November', 'December'];
+    return '${months[d.month - 1]} ${d.year}';
   }
 
   /// Activity hint from current hour — used to prime the vibe selection.
@@ -400,6 +502,7 @@ class LlmService {
     // 1. Try Local GGUF
     if (_modelAvailable && _modelLoaded && _llama != null && _isAiEnabled) {
       try {
+        modelStatus.value = 'AI: Generating recap on-device...';
         print('[LLM] Generating recap via Local GGUF...');
         if (!_modelLoaded || _llama == null) return _generateLocal(report);
 
@@ -424,6 +527,7 @@ class LlmService {
     final apiKey = await currentApiKey;
     if (apiKey.isNotEmpty) {
       try {
+        modelStatus.value = 'AI: Calling Gemini API...';
         print('[LLM] Generating recap via Gemini API...');
         final url = Uri.parse(
             'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=$apiKey');
@@ -544,6 +648,9 @@ class LlmService {
     await DbService.instance.isar.writeTxn(() async {
       await DbService.instance.wrappedReports.put(report);
     });
+    if (_isAiEnabled) {
+      modelStatus.value = 'AI: Wrapped generation complete!';
+    }
     return result;
   }
 
@@ -558,152 +665,96 @@ class LlmService {
   Future<List<SmartPlaylistData>> generateSmartPlaylists() async {
     await _loadFuture;
 
+    // 1. Try Memory Cache
     if (_cachedPlaylists != null &&
         _lastPlaylistUpdate != null &&
-        DateTime.now().difference(_lastPlaylistUpdate!).inMinutes < 30) {
+        _isSameDay(_lastPlaylistUpdate!, DateTime.now())) {
       return _cachedPlaylists!;
     }
 
+    // 2. Try Disk Cache
+    if (_cachedPlaylists == null) {
+      await _loadPlaylistsFromCache();
+      if (_cachedPlaylists != null &&
+          _lastPlaylistUpdate != null &&
+          _isSameDay(_lastPlaylistUpdate!, DateTime.now())) {
+        return _cachedPlaylists!;
+      }
+    }
+
+    // 3. True Generation
     final db = DbService.instance;
     final allSongs =
         await db.songs.where().filter().isHiddenEqualTo(false).findAll();
     if (allSongs.isEmpty) return [];
 
     final genreMap = <String, List<Song>>{};
-    final artistMap = <String, List<Song>>{};
-
     for (var s in allSongs) {
-      final normalizedGenre = s.genre
-          .trim()
-          .split(' ')
-          .map((word) => word.isEmpty
-              ? ''
-              : word[0].toUpperCase() + word.substring(1).toLowerCase())
-          .join(' ');
-      if (normalizedGenre.isNotEmpty &&
-          normalizedGenre != 'Unknown' &&
-          normalizedGenre != '<unknown>') {
+      final normalizedGenre = _normalizeGenre(s.genre);
+      if (normalizedGenre.isNotEmpty) {
         genreMap.putIfAbsent(normalizedGenre, () => []).add(s);
-      }
-
-      final normalizedArtist = s.artist
-          .trim()
-          .split(' ')
-          .map((word) => word.isEmpty
-              ? ''
-              : word[0].toUpperCase() + word.substring(1).toLowerCase())
-          .join(' ');
-      if (normalizedArtist.isNotEmpty &&
-          normalizedArtist != 'Unknown Artist' &&
-          normalizedArtist != 'Unknown') {
-        artistMap.putIfAbsent(normalizedArtist, () => []).add(s);
       }
     }
 
     final sortedGenres = genreMap.entries.toList()
       ..sort((a, b) => b.value.length.compareTo(a.value.length));
-    final sortedArtists = artistMap.entries.toList()
-      ..sort((a, b) => b.value.length.compareTo(a.value.length));
 
-    final fallbackNames = <String, String>{
-      'Rock': 'Electric Reverie',
-      'Pop': 'Bubblegum Crisis',
-      'Jazz': 'Midnight Noir',
-      'Hip Hop': 'Concrete Jungle',
-      'Chill': 'Cloud Nine',
-      'Classical': 'Eternal Echoes',
-      'Country': 'Dusty Roads',
-      'Electronic': 'Neon Dreams',
+    final List<SmartPlaylistData> result = [];
+    final fallbackNames = {
+      'Pop': 'Pop Pulse',
+      'Rock': 'Rock Ritual',
+      'Jazz': 'Blue Note Lounge',
+      'Lo-fi': 'Bedroom Beats',
+      'Classical': 'Grand Hall'
     };
 
-    final result = <SmartPlaylistData>[];
     final activityHint = _activityHintFromHour();
 
-    // ── Genre-based playlists (top 5) ──────────────────────────────────────
+    // Loop top 5 genres
     for (var i = 0; i < sortedGenres.length && i < 5; i++) {
       final genre = sortedGenres[i].key;
-      final songs = sortedGenres[i].value;
-      if (songs.length < 3) continue;
+      final genreSongs = sortedGenres[i].value;
+      if (genreSongs.length < 3) continue;
 
-      // A. ALGO playlist — ranked by play loyalty + recency (no LLM needed)
-      final algoSongs = _curateByScore(songs, '', limit: 20);
-      final algoName = fallbackNames[genre] ?? '$genre Vibes';
+      // A. ALGO playlist — strictly genre-locked, standard 20 songs
+      final algoSongs = _curateByScore(genreSongs, '', limit: 20);
       result.add(SmartPlaylistData(
-        name: algoName,
+        name: fallbackNames[genre] ?? '$genre Vibes',
         songs: algoSongs,
         isAiGenerated: false,
       ));
 
-      // B. AI playlist — LLM picks vibe → curate songs → LLM picks name
+      // B. AI playlist — Discovery Engine (entire library)
       if (_modelAvailable && _modelLoaded && _llama != null && _isAiEnabled) {
         try {
           generationProgress.value = 0;
+          modelStatus.value = 'AI: Curating $genre session...';
 
-          // Step 1: ask LLM what vibe fits this genre + current activity
+          // Step 1: LLM picks vibe
           final vibeTag = await _askLlmForVibeTag(genre, activityHint);
 
-          // Step 2: curate songs by vibe score (different from algo order)
-          final aiSongs = _curateByScore(songs, vibeTag, limit: 20);
+          // Step 2: Curation with dynamic limit (10-35)
+          final dynamicLimit = 10 + (DateTime.now().millisecond % 26); // Pseudo-random 10-35
+          final aiSongs = _curateByScore(allSongs, vibeTag, 
+              targetGenre: genre, 
+              limit: dynamicLimit, 
+              isAi: true);
 
-          // Step 3: ask LLM for a name that reflects both genre + vibe
+          // Step 3: LLM picks name
+          modelStatus.value = 'AI: Naming $genre session...';
           final aiName = await _generateAiPlaylistName(genre, vibeTag);
 
-          if (aiName.isNotEmpty &&
-              aiName.toLowerCase() != algoName.toLowerCase()) {
+          if (aiName.isNotEmpty) {
             result.add(SmartPlaylistData(
               name: aiName,
               songs: aiSongs,
               isAiGenerated: true,
             ));
-            print('[LLM] AI playlist "$aiName" ($vibeTag) — ${aiSongs.length} songs');
           }
         } catch (e) {
           print('[LLM] AI playlist error: $e');
         }
       }
-    }
-
-    // ── Artist Ritual playlists (top 3) ────────────────────────────────────
-    for (var i = 0; i < sortedArtists.length && i < 3; i++) {
-      final artist = sortedArtists[i].key;
-      final songs = sortedArtists[i].value;
-      if (songs.length < 4) continue;
-
-      // Sort by play count desc so most-loved songs lead the ritual
-      final ritualSongs = List<Song>.from(songs)
-        ..sort((a, b) => b.playCount.compareTo(a.playCount));
-      result.add(SmartPlaylistData(
-        name: '$artist Ritual',
-        songs: ritualSongs.take(15).toList(),
-        isAiGenerated: false,
-      ));
-    }
-
-    // ── The Vault (old favourites not heard recently) ─────────────────────
-    final vaultSongs = allSongs
-        .where((s) =>
-            s.playCount > 5 &&
-            (s.lastPlayedAt == null ||
-                DateTime.now().difference(s.lastPlayedAt!).inDays > 7))
-        .toList()
-      ..sort((a, b) => b.playCount.compareTo(a.playCount));
-    if (vaultSongs.isNotEmpty) {
-      result.add(SmartPlaylistData(
-        name: 'The Vault',
-        songs: vaultSongs.take(15).toList(),
-        isAiGenerated: false,
-      ));
-    }
-
-    // ── Discovery Lane (unplayed or barely played) ────────────────────────
-    final discoverySongs = allSongs.where((s) => s.playCount <= 1).toList()
-      ..shuffle();
-    if (discoverySongs.isNotEmpty) {
-      result.add(SmartPlaylistData(
-        name: 'Discovery Lane',
-        songs: discoverySongs.take(15).toList(),
-        isAiGenerated: false,
-      ));
     }
 
     // ── Fallback: mixed ───────────────────────────────────────────────────
@@ -718,6 +769,9 @@ class LlmService {
 
     _cachedPlaylists = result;
     _lastPlaylistUpdate = DateTime.now();
+    if (_isAiEnabled && _modelAvailable) {
+      modelStatus.value = 'AI: Curation complete!';
+    }
     return result;
   }
 
@@ -728,9 +782,9 @@ class LlmService {
 
     final vibeHint = vibe.isNotEmpty ? ' with a $vibe feeling' : '';
     final instruction =
-        'Give one English word as a creative name for a $genre playlist$vibeHint. '
-        'The word must evoke the mood, not describe it literally. '
-        'Output only the single word, nothing else.';
+        'Give exactly two English words as a creative name for a $genre playlist$vibeHint. '
+        'The words must evoke the mood, not describe it literally. '
+        'Output only the two words, nothing else.';
     final prompt = _wrapPrompt(instruction, 'Name:');
 
     try {
@@ -808,7 +862,7 @@ class LlmService {
 
   // ── Personality & Slide Insights ──────────────────────────────────────────
 
-  /// Dedicated cleaner for playlist names: strictly 1 word, title-cased, alpha only.
+  /// Dedicated cleaner for playlist names: strictly 2 words, title-cased, alpha only.
   String _cleanPlaylistName(String text) {
     if (text.isEmpty) return '';
 
@@ -837,11 +891,18 @@ class LlmService {
         s.split('\n').firstWhere((l) => l.trim().isNotEmpty, orElse: () => '');
 
     final words = firstLine.trim().split(RegExp(r'\s+'));
+    final validWords = <String>[];
+    
     for (final word in words) {
       final clean = word.replaceAll(RegExp(r'[^a-zA-Z]'), '');
-      if (clean.length >= 3 && !_isJunkWord(clean.toLowerCase())) {
-        return clean[0].toUpperCase() + clean.substring(1).toLowerCase();
+      if (clean.length >= 2 && !_isJunkWord(clean.toLowerCase())) {
+        validWords.add(clean[0].toUpperCase() + clean.substring(1).toLowerCase());
+        if (validWords.length == 2) break; // We strictly want 2 words
       }
+    }
+    
+    if (validWords.isNotEmpty) {
+      return validWords.join(' ');
     }
     return '';
   }

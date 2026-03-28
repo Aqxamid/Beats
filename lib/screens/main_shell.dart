@@ -9,6 +9,7 @@ import 'library/home_screen.dart';
 import 'library/search_screen.dart';
 import 'stats/stats_screen.dart';
 import 'library/library_screen.dart';
+import '../widgets/global_ai_status_indicator.dart';
 
 class MainShell extends ConsumerWidget {
   const MainShell({super.key});
@@ -27,9 +28,14 @@ class MainShell extends ConsumerWidget {
     return Scaffold(
       body: SafeArea(
         bottom: false,
-        child: IndexedStack(
-          index: currentIndex,
-          children: _screens,
+        child: Stack(
+          children: [
+            IndexedStack(
+              index: currentIndex,
+              children: _screens,
+            ),
+            const GlobalAiStatusIndicator(),
+          ],
         ),
       ),
       bottomNavigationBar: _BopNavBar(

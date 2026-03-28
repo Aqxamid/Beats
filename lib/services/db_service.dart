@@ -195,7 +195,9 @@ class DbService {
       ..sort((a, b) => b.value.compareTo(a.value));
     
     final result = <MapEntry<Song, int>>[];
-    for (final entry in sortedKeys.take(limit)) {
+    for (final entry in sortedKeys) {
+      if (result.length >= limit) break;
+      
       final parts = entry.key.split('|');
       final title = parts[0];
       final artist = parts[1];
