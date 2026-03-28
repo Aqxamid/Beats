@@ -251,26 +251,74 @@ class LlmService {
   /// Used as a lightweight stand-in for audio-feature analysis.
   String _songVibeTag(Song song) {
     final g = song.genre.toLowerCase();
+
+    // Chill / soft textures
     if (g.contains('lo-fi') || g.contains('chill') || g.contains('ambient')) return 'chill';
+    if (g.contains('acoustic') || g.contains('folk')) return 'mellow';
+    if (g.contains('piano') || g.contains('instrumental')) return 'serene';
+
+    // Energy / intensity
     if (g.contains('rock') || g.contains('metal') || g.contains('punk')) return 'energetic';
-    if (g.contains('jazz') || g.contains('blues') || g.contains('soul')) return 'soulful';
-    if (g.contains('pop') || g.contains('indie')) return 'upbeat';
+    if (g.contains('hardcore') || g.contains('grunge')) return 'aggressive';
+
+    // Groove / rhythm-driven
+    if (g.contains('funk') || g.contains('disco')) return 'groovy';
+    if (g.contains('r&b') || g.contains('soul')) return 'smooth';
+
+    // Emotional tones
+    if (g.contains('blues')) return 'melancholic';
+    if (g.contains('emo') || g.contains('sad')) return 'emotional';
+    if (g.contains('romance') || g.contains('love')) return 'romantic';
+    if (g.contains('throwback') || g.contains('retro')) return 'nostalgic';
+
+    // Mainstream / general vibes
+    if (g.contains('pop')) return 'upbeat';
+    if (g.contains('indie')) return 'dreamy';
+
+    // Rap / hype spectrum
     if (g.contains('hip') || g.contains('rap') || g.contains('trap')) return 'hype';
+    if (g.contains('drill')) return 'gritty';
+
+    // Electronic spectrum
+    if (g.contains('edm') || g.contains('dance')) return 'party';
+    if (g.contains('house') || g.contains('techno')) return 'electric';
+    if (g.contains('synth') || g.contains('wave')) return 'atmospheric';
+
+    // Classical / cinematic
     if (g.contains('classical') || g.contains('orchestral')) return 'focused';
-    if (g.contains('electronic') || g.contains('edm') || g.contains('dance')) return 'electric';
-    if (g.contains('country') || g.contains('folk') || g.contains('acoustic')) return 'mellow';
-    // Fallback: infer from play-count momentum
-    if (song.playCount > 20) return 'energetic';
+    if (g.contains('soundtrack') || g.contains('score')) return 'cinematic';
+    if (g.contains('epic')) return 'epic';
+
+    // Gospel / worship
+    if (g.contains('worship') || g.contains('gospel')) return 'uplifting';
+
+    // Fallback: smarter momentum heuristic
+    if (song.playCount > 50) return 'intense';
+    if (song.playCount > 25) return 'energetic';
     if (song.playCount > 10) return 'upbeat';
+
     return 'chill';
   }
 
   /// Ask the LLM to pick the best vibe-tag for a playlist theme in one token.
-  /// Returns one of: chill | energetic | soulful | upbeat | hype | focused | electric | mellow
+  /// validTags set matches the full expanded const tags list.
   Future<String> _askLlmForVibeTag(String genre, String activityHint) async {
     if (!_modelAvailable || !_modelLoaded || _llama == null || !_isAiEnabled) return '';
 
-    const tags = 'chill, energetic, soulful, upbeat, hype, focused, electric, mellow';
+    const tags =
+        'chill, energetic, soulful, upbeat, hype, focused, electric, mellow, '
+        'dreamy, dark, atmospheric, romantic, nostalgic, groovy, aggressive, uplifting, '
+        'emotional, cinematic, funky, gritty, smooth, melancholic, party, ethereal, '
+        'intense, serene, playful, epic';
+
+    // Must stay in sync with const tags above
+    const validTags = {
+      'chill', 'energetic', 'soulful', 'upbeat', 'hype', 'focused', 'electric', 'mellow',
+      'dreamy', 'dark', 'atmospheric', 'romantic', 'nostalgic', 'groovy', 'aggressive',
+      'uplifting', 'emotional', 'cinematic', 'funky', 'gritty', 'smooth', 'melancholic',
+      'party', 'ethereal', 'intense', 'serene', 'playful', 'epic',
+    };
+
     final instruction =
         'A listener who loves $genre music is about to listen $activityHint. '
         'Which single word best describes the ideal vibe? '
@@ -292,7 +340,7 @@ class LlmService {
           .trim()
           .split(' ')
           .firstWhere(
-            (w) => ['chill','energetic','soulful','upbeat','hype','focused','electric','mellow'].contains(w),
+            (w) => validTags.contains(w),
             orElse: () => '',
           );
       print('[LLM] Vibe tag for $genre: $word');
@@ -311,21 +359,54 @@ class LlmService {
 
     // Partial affinity map — similar vibes score 0.6 instead of 0
     const affinity = <String, List<String>>{
-      'chill':     ['mellow', 'focused', 'soulful'],
-      'energetic': ['hype', 'electric', 'upbeat'],
-      'soulful':   ['chill', 'mellow', 'upbeat'],
-      'upbeat':    ['energetic', 'electric', 'soulful'],
-      'hype':      ['energetic', 'electric', 'upbeat'],
-      'focused':   ['chill', 'mellow'],
-      'electric':  ['energetic', 'hype', 'upbeat'],
-      'mellow':    ['chill', 'focused', 'soulful'],
+      // Core relaxed spectrum
+      'chill':        ['mellow', 'serene', 'dreamy', 'atmospheric', 'ethereal'],
+      'mellow':       ['chill', 'serene', 'soulful', 'smooth'],
+      'serene':       ['chill', 'mellow', 'ambient', 'ethereal'],
+
+      // Emotional spectrum
+      'emotional':    ['melancholic', 'romantic', 'soulful'],
+      'melancholic':  ['emotional', 'soulful', 'dreamy'],
+      'romantic':     ['emotional', 'smooth', 'soulful'],
+      'soulful':      ['smooth', 'mellow', 'emotional'],
+      'smooth':       ['soulful', 'romantic', 'mellow'],
+
+      // Energy spectrum
+      'energetic':    ['hype', 'electric', 'intense', 'upbeat'],
+      'hype':         ['energetic', 'electric', 'party'],
+      'intense':      ['energetic', 'aggressive', 'epic'],
+      'aggressive':   ['intense', 'gritty'],
+      'gritty':       ['aggressive', 'hype'],
+
+      // Bright / positive
+      'upbeat':       ['energetic', 'playful', 'groovy'],
+      'playful':      ['upbeat', 'funky'],
+      'groovy':       ['funky', 'upbeat'],
+      'funky':        ['groovy', 'playful'],
+
+      // Electronic / spatial
+      'electric':     ['energetic', 'party', 'atmospheric'],
+      'party':        ['hype', 'electric', 'upbeat'],
+      'atmospheric':  ['dreamy', 'ethereal', 'cinematic', 'chill'],
+      'ethereal':     ['dreamy', 'atmospheric', 'serene'],
+      'dreamy':       ['chill', 'ethereal', 'melancholic'],
+
+      // Cinematic / grand
+      'cinematic':    ['epic', 'atmospheric'],
+      'epic':         ['cinematic', 'intense'],
+
+      // Focus / structure
+      'focused':      ['serene', 'chill'],
+
+      // Positive / uplifting
+      'uplifting':    ['upbeat', 'emotional'],
     };
     final related = affinity[targetVibe] ?? [];
     return related.contains(songVibe) ? 0.6 : 0.1;
   }
 
   /// Refined Hybrid Discovery Algo
-  List<Song> _curateByScore(List<Song> candidates, String targetVibe, 
+  List<Song> _curateByScore(List<Song> candidates, String targetVibe,
       {String targetGenre = '', int limit = 20, bool isAi = false}) {
     final now = DateTime.now();
     final maxPlays = candidates.fold<int>(1, (m, s) => s.playCount > m ? s.playCount : m);
@@ -339,14 +420,17 @@ class LlmService {
       }
 
       final moodScore = _vibeMatchScore(song, targetVibe);
-      final isExactGenre = targetGenre.isNotEmpty && song.genre.toLowerCase().contains(targetGenre.toLowerCase());
+      final isExactGenre = targetGenre.isNotEmpty &&
+          song.genre.toLowerCase().contains(targetGenre.toLowerCase());
 
       double total;
       if (isAi) {
         // AI AGGRESSIVE HYBRID (Discovery-focused)
         // 20% Genre Anchor, 60% Vibe Match, 20% Habits (Play + Fresh)
-        total = (isExactGenre ? 0.20 : 0.0) + (moodScore * 0.60) + ((playScore * 0.10) + (freshScore * 0.10));
-        
+        total = (isExactGenre ? 0.20 : 0.0) +
+            (moodScore * 0.60) +
+            ((playScore * 0.10) + (freshScore * 0.10));
+
         // Add tiny deterministic noise based on Song ID to prevent identical ties
         final noise = (song.id % 100) / 1000.0;
         total += noise;
@@ -445,14 +529,16 @@ class LlmService {
         .filter()
         .periodLabelEqualTo(monthLabel)
         .findFirst();
-    
+
     if (exists != null && exists.llmRecap.isNotEmpty) return;
     print('[LLM] Performing end-of-month auto-generation for $monthLabel...');
   }
 
   String _getMonthLabel(DateTime d) {
-    const months = ['January', 'February', 'March', 'April', 'May', 'June', 
-                   'July', 'August', 'September', 'October', 'November', 'December'];
+    const months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
     return '${months[d.month - 1]} ${d.year}';
   }
 
@@ -567,13 +653,6 @@ class LlmService {
   }
 
   // ── RECAP PROMPTS ─────────────────────────────────────────────────────────
-  //
-  // The old prompts fed raw facts ("top artist X, plays Y") and the model
-  // echoed them back as statements. New approach:
-  //   1. Facts are hidden behind a single adjective the model must *interpret*
-  //   2. The model is told it's writing about a *person*, not a stat sheet
-  //   3. Fill-in prefix anchors the voice immediately so the model can't pivot
-  //      to listing facts before the token budget runs out
 
   /// Prompt for local tiny LLMs — personality-first, fact-light.
   String _buildRecapPrompt(WrappedReport report, String? lyricsSnippet) {
@@ -585,8 +664,6 @@ class LlmService {
             : 'consistently';
     final timeVibe = _peakHourVibe(_parsePeakHour(report.peakHourLabel));
 
-    // Fill-in format: model must continue the opening sentence in a vivid,
-    // personality-driven voice. Facts only leak in as colour, not the point.
     final instruction =
         'You are a snarky music personality writing a 2-sentence vibe check '
         'about a listener. Capture their soul, not their stats. '
@@ -655,12 +732,6 @@ class LlmService {
   }
 
   // ── SMART PLAYLISTS ───────────────────────────────────────────────────────
-  //
-  // Three tiers:
-  //   ALGO  — sorted by (playScore + freshScore), labelled with a static name
-  //   AI    — LLM picks a vibe tag → songs scored by vibe match + play + recency
-  //           → LLM also picks the playlist name
-  //   FIXED — The Vault, Discovery Lane, Artist Ritual (unchanged logic)
 
   Future<List<SmartPlaylistData>> generateSmartPlaylists() async {
     await _loadFuture;
@@ -734,10 +805,10 @@ class LlmService {
           final vibeTag = await _askLlmForVibeTag(genre, activityHint);
 
           // Step 2: Curation with dynamic limit (10-35)
-          final dynamicLimit = 10 + (DateTime.now().millisecond % 26); // Pseudo-random 10-35
-          final aiSongs = _curateByScore(allSongs, vibeTag, 
-              targetGenre: genre, 
-              limit: dynamicLimit, 
+          final dynamicLimit = 10 + (DateTime.now().millisecond % 26);
+          final aiSongs = _curateByScore(allSongs, vibeTag,
+              targetGenre: genre,
+              limit: dynamicLimit,
               isAi: true);
 
           // Step 3: LLM picks name
@@ -776,7 +847,6 @@ class LlmService {
   }
 
   /// Asks the LLM for a playlist name given genre + vibe context.
-  /// Returns empty string on failure (caller falls back to algo name).
   Future<String> _generateAiPlaylistName(String genre, String vibe) async {
     if (!_modelAvailable || !_modelLoaded || _llama == null || !_isAiEnabled) return '';
 
@@ -810,10 +880,8 @@ class LlmService {
         await db.songs.where().filter().isHiddenEqualTo(false).findAll();
     if (allSongs.isEmpty) return null;
 
-    // Use vibe scoring to pick next song instead of pure shuffle
     final currentVibe = _songVibeTag(currentSong);
-    var candidates =
-        allSongs.where((s) => s.id != currentSong.id).toList();
+    var candidates = allSongs.where((s) => s.id != currentSong.id).toList();
     if (candidates.isEmpty) return null;
 
     final scored = _curateByScore(candidates, currentVibe, limit: 10);
@@ -867,24 +935,13 @@ class LlmService {
     if (text.isEmpty) return '';
 
     String s = text
-        .replaceAll(
-            RegExp(r'\[\/?INST[\]\}]', caseSensitive: false), '')
-        .replaceAll(
-            RegExp(
-                r'<s>|</s>|<start_of_turn>|<end_of_turn>',
-                caseSensitive: false),
-            '')
-        .replaceAll(
-            RegExp(
-                r'###\s*(INSTRUCTION|RESPONSE|END)[^:\n]*:?',
-                caseSensitive: false),
-            '')
+        .replaceAll(RegExp(r'\[\/?INST[\]\}]', caseSensitive: false), '')
+        .replaceAll(RegExp(r'<s>|</s>|<start_of_turn>|<end_of_turn>', caseSensitive: false), '')
+        .replaceAll(RegExp(r'###\s*(INSTRUCTION|RESPONSE|END)[^:\n]*:?', caseSensitive: false), '')
         .replaceAll(RegExp(r'Name\s*:', caseSensitive: false), '')
         .replaceAll(
-            RegExp(
-                r'(playlist|genre|word|name|music|creative|catchy|here|sure|certainly)[^a-zA-Z]*',
-                caseSensitive: false),
-            '')
+            RegExp(r'(playlist|genre|word|name|music|creative|catchy|here|sure|certainly)[^a-zA-Z]*',
+                caseSensitive: false), '')
         .trim();
 
     final firstLine =
@@ -892,25 +949,26 @@ class LlmService {
 
     final words = firstLine.trim().split(RegExp(r'\s+'));
     final validWords = <String>[];
-    
+
     for (final word in words) {
       final clean = word.replaceAll(RegExp(r'[^a-zA-Z]'), '');
       if (clean.length >= 2 && !_isJunkWord(clean.toLowerCase())) {
         validWords.add(clean[0].toUpperCase() + clean.substring(1).toLowerCase());
-        if (validWords.length == 2) break; // We strictly want 2 words
+        if (validWords.length == 2) break;
       }
     }
-    
+
     if (validWords.isNotEmpty) {
       return validWords.join(' ');
     }
     return '';
   }
 
+  /// 'new' removed — it kills valid names like "New Wave", "New Soul".
   bool _isJunkWord(String w) {
     const junk = {
       'the', 'and', 'for', 'that', 'this', 'with', 'from', 'just', 'only',
-      'here', 'sure', 'okay', 'well', 'yes', 'out', 'one', 'new'
+      'here', 'sure', 'okay', 'well', 'yes', 'out', 'one',
     };
     return junk.contains(w);
   }
@@ -920,18 +978,9 @@ class LlmService {
     if (text.isEmpty) return '';
 
     String scrubbed = text
-        .replaceAll(
-            RegExp(r'\[\/?INST[\]\}]', caseSensitive: false), '')
-        .replaceAll(
-            RegExp(
-                r'<s>|</s>|<start_of_turn>|<end_of_turn>',
-                caseSensitive: false),
-            '')
-        .replaceAll(
-            RegExp(
-                r'###\s*(INSTRUCTION|RESPONSE|END)[^:\n]*:?',
-                caseSensitive: false),
-            '')
+        .replaceAll(RegExp(r'\[\/?INST[\]\}]', caseSensitive: false), '')
+        .replaceAll(RegExp(r'<s>|</s>|<start_of_turn>|<end_of_turn>', caseSensitive: false), '')
+        .replaceAll(RegExp(r'###\s*(INSTRUCTION|RESPONSE|END)[^:\n]*:?', caseSensitive: false), '')
         .trim();
 
     final lines = scrubbed.split('\n');
@@ -1010,13 +1059,21 @@ class LlmService {
 
   // ── PERSONALITY TITLE ─────────────────────────────────────────────────────
   //
-  // New flow:
-  //   1. LLM generates a 2-word title evoked by the listener's actual
-  //      genre + loyalty + time-vibe (not just genre alone)
-  //   2. If LLM fails or produces junk → genre-mapped algo fallback
+  // FIX: The old prompt used _wrapPrompt(instruction, 'The') which caused both
+  // Gemma-3-1B and Llama-3.2-1B to write a sentence ("The listener is a devoted
+  // Pop fan...") instead of a 2-word name. 1B models cannot handle two conflicting
+  // signals at once — "output only 2 words" (rule) vs "The" (sentence primer).
+  // The sentence primer always wins at this scale.
   //
-  // Prompt is phrased as a fill-in ("The ___") so tiny models don't pivot
-  // to writing a sentence instead of a noun phrase.
+  // Fix applied:
+  //   1. Instruction uses example-pattern prompting instead of abstract rules.
+  //      Examples do far more than rules on sub-2B models.
+  //   2. Prefix changed to 'The ' (trailing space) — lands the model directly
+  //      at the adjective slot with no ambiguity.
+  //   3. Early-exit breaks the stream the moment we have 2 words, preventing
+  //      sentence drift even when generation wants to continue.
+  //   4. Dedicated _cleanPersonalityTitle strips any continuation and enforces
+  //      exactly 2 alpha words, min 3 chars each.
 
   /// Generate a unique personality title (e.g. "The Velvet Midnight")
   Future<String> generateListeningPersonality(WrappedReport report) async {
@@ -1033,24 +1090,29 @@ class LlmService {
       try {
         if (!_modelLoaded || _llama == null) return _personalityFallback(topGenre);
 
-        // Richer context → more unique output; still fill-in to avoid prose
+        // Pattern-completion prompt — examples beat abstract rules on 1B models.
+        // Prefix 'The ' puts model directly at the adjective slot.
         final instruction =
-            'Create a 2-word music listener personality title. '
-            'The listener is a $loyalty $topGenre fan and a $timeVibe type. '
-            'Examples: "Velvet Midnight", "Static Dreamer", "Neon Specter". '
-            'Output only the 2 words, no punctuation, no explanation.';
-        final prompt = _wrapPrompt(instruction, 'The');
+            'Complete the music listener title with ONE adjective and ONE noun. '
+            'Genre: $topGenre. Mood: $timeVibe. Loyalty: $loyalty. '
+            'Examples: "Velvet Midnight", "Static Dreamer", "Neon Specter", "Hollow Echo". '
+            'Output ONLY the two words after "The".';
+
+        final prompt = _wrapPrompt(instruction, 'The ');
 
         generationProgress.value = 0;
-        final stream = _llama!.generate(prompt: prompt, maxTokens: 12);
+        final stream = _llama!.generate(prompt: prompt, maxTokens: 8);
         String response = '';
         await for (final token in stream) {
           if (!_modelLoaded || _llama == null) break;
           response += token;
           generationProgress.value++;
+          // Early-exit: stop as soon as we have 2 words — prevents sentence drift
+          if (response.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).length >= 2) break;
         }
+
         if (response.isNotEmpty) {
-          final cleaned = _cleanLlmResponse(response, isTitle: true);
+          final cleaned = _cleanPersonalityTitle(response);
           if (cleaned.length > 3) return 'The $cleaned';
         }
       } catch (_) {}
@@ -1059,7 +1121,39 @@ class LlmService {
     return _personalityFallback(topGenre);
   }
 
-  /// Algo fallback map for personality titles.
+  /// Dedicated cleaner for personality titles.
+  /// Extracts exactly 2 title-cased alpha words, strips any sentence continuation.
+  String _cleanPersonalityTitle(String text) {
+    if (text.isEmpty) return '';
+
+    String s = text
+        .replaceAll(RegExp(r'\[\/?INST[\]\}]', caseSensitive: false), '')
+        .replaceAll(RegExp(r'<s>|</s>|<start_of_turn>|<end_of_turn>', caseSensitive: false), '')
+        .replaceAll(RegExp(r'###\s*(INSTRUCTION|RESPONSE|END)[^:\n]*:?', caseSensitive: false), '')
+        // Strip echoed "The" prefix if model repeated it
+        .replaceAll(RegExp(r'^[Tt]he\s+', caseSensitive: false), '')
+        .replaceAll('"', '')
+        .replaceAll("'", '')
+        .trim();
+
+    // Take only the first line — ignore any sentence drift after newline
+    s = s.split('\n').firstWhere((l) => l.trim().isNotEmpty, orElse: () => '').trim();
+
+    // Pull exactly 2 valid alpha words, min 3 chars each, skip junk
+    final words = s.split(RegExp(r'\s+'));
+    final valid = <String>[];
+    for (final w in words) {
+      final clean = w.replaceAll(RegExp(r'[^a-zA-Z]'), '');
+      if (clean.length >= 3 && !_isJunkWord(clean.toLowerCase())) {
+        valid.add(clean[0].toUpperCase() + clean.substring(1).toLowerCase());
+        if (valid.length == 2) break;
+      }
+    }
+
+    return valid.join(' ');
+  }
+
+  /// Algo fallback map for personality titles — covers all genre additions.
   String _personalityFallback(String topGenre) {
     if (topGenre.contains('Lo-fi') || topGenre.contains('Chill')) return 'The Tranquil Soul';
     if (topGenre.contains('Rock') || topGenre.contains('Metal')) return 'The Sonic Rebel';
@@ -1067,6 +1161,13 @@ class LlmService {
     if (topGenre.contains('Hip Hop') || topGenre.contains('Rap')) return 'The Frequency Rider';
     if (topGenre.contains('Jazz')) return 'The Midnight Wanderer';
     if (topGenre.contains('Electronic')) return 'The Neon Nomad';
+    if (topGenre.contains('R&B') || topGenre.contains('Soul')) return 'The Velvet Pulse';
+    if (topGenre.contains('Classical') || topGenre.contains('Orchestral')) return 'The Grand Listener';
+    if (topGenre.contains('Worship') || topGenre.contains('Gospel')) return 'The Spirit Seeker';
+    if (topGenre.contains('Indie')) return 'The Quiet Dreamer';
+    if (topGenre.contains('Drill') || topGenre.contains('Trap')) return 'The Street Poet';
+    if (topGenre.contains('Acoustic') || topGenre.contains('Folk')) return 'The Honest Drifter';
+    if (topGenre.contains('Blues')) return 'The Hollow Soul';
     return 'The Melodic Nomad';
   }
 
