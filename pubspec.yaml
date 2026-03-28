@@ -1,6 +1,6 @@
 name: bop
 description: Bop — the ultimate offline music player with on-device Recap stories.
-version: 2.3.5+1
+version: 2.4.0+1
 
 environment:
   sdk: ">=3.0.0 <4.0.0"
