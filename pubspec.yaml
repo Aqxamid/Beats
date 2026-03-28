@@ -59,7 +59,7 @@ dependencies:
   palette_generator: ^0.3.3+4
 
   # Local LLM (GGUF)
-  llama_cpp_dart: ^0.1.1
+  llama_flutter_android: ^0.1.2
   file_picker: ^8.0.0
   screenshot: ^3.0.0
   flutter_local_notifications: ^17.2.1

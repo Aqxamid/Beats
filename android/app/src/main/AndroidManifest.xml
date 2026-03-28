@@ -14,7 +14,8 @@
         android:label="Bop"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
-        android:requestLegacyExternalStorage="true">
+        android:requestLegacyExternalStorage="true"
+        android:extractNativeLibs="true">
         <activity
             android:name="com.example.beatspill.MainActivity"
             android:exported="true"

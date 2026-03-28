@@ -6,6 +6,7 @@ import 'package:isar/isar.dart';
 import '../models/wrapped_report.dart';
 import '../models/play_event.dart';
 import 'db_service.dart';
+import 'llm_service.dart';
 
 class StatsService {
   StatsService._();
@@ -69,12 +70,12 @@ class StatsService {
     }
 
     // ── Top songs (Monthly accurate) ────────────────
+    final top5JSON = <Map<String, dynamic>>[];
     final topSongsWithCounts = await _db.topSongsForRange(start, end, limit: 5);
     if (topSongsWithCounts.isNotEmpty) {
       report.topSong = topSongsWithCounts.first.key.title;
 
       // Extract accurate minutes from PlayEvents for these specific songs
-      final top5JSON = <Map<String, dynamic>>[];
       for (final entry in topSongsWithCounts) {
         final song = entry.key;
         final count = entry.value;
@@ -109,6 +110,10 @@ class StatsService {
       report.slidesJsonStr = jsonEncode({'topSongs': [], 'heatmap': heatmap});
     }
 
+    // ── Genre breakdown ─────────────────────────────
+    final genres = await _db.genreBreakdownForRange(start, end);
+    report.genreJsonStr = jsonEncode(genres);
+
     // ── Peak hour ──────────────────────────────────
     int peakHour = 0;
     int peakCount = 0;
@@ -129,9 +134,44 @@ class StatsService {
     report.personalityType  = personality.$1;
     report.personalityEmoji = personality.$2;
 
-    // ── Genre breakdown ─────────────────────────────
-    final genres = await _db.genreBreakdownForRange(start, end);
-    report.genreJsonStr = jsonEncode(genres);
+    // ── AI Insights (Personality, Song, Artist, Minutes, Time) ──
+    String personalityTitle = report.personalityType; // Fallback
+    String songInsight = "Your soul on repeat."; // Fallback
+    String artistInsight = "They were there for you. All ${report.topArtistPlays} times.";
+    String minutesInsight = "That's many hours. We're not judging.";
+    String timeInsight = "${report.peakHourLabel} - The perfect hour.";
+    
+    try {
+      final llm = LlmService.instance;
+      // Parallelize to save time
+      final futures = await Future.wait([
+        llm.generateListeningPersonality(report),
+        llm.generateSongInsight(report.topSong),
+        llm.generateArtistInsight(report.topArtist, report.topArtistPlays),
+        llm.generateMinutesInsight(report.totalMinutes),
+        llm.generateTimeInsight(peakHour, report.totalMinutes),
+      ]);
+      
+      personalityTitle = futures[0];
+      songInsight = futures[1];
+      artistInsight = futures[2];
+      minutesInsight = futures[3];
+      timeInsight = futures[4];
+    } catch (_) {}
+
+    // ── Build slides JSON ──
+    // Note: We're embedding insights here to avoid Isar schema changes in production.
+    report.slidesJsonStr = jsonEncode({
+      'topSongs': top5JSON,
+      'heatmap': heatmap,
+      'insights': {
+        'personalityTitle': personalityTitle,
+        'songInsight': songInsight,
+        'artistInsight': artistInsight,
+        'minutesInsight': minutesInsight,
+        'timeInsight': timeInsight,
+      }
+    });
 
     return report;
   }

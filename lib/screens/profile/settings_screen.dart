@@ -36,6 +36,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     super.initState();
     _checkApiKey();
     _loadProfile();
+    // Keep _modelFilename in sync whenever modelName notifier fires
+    LlmService.instance.modelName.addListener(_onModelNameChanged);
+  }
+
+  @override
+  void dispose() {
+    LlmService.instance.modelName.removeListener(_onModelNameChanged);
+    super.dispose();
+  }
+
+  void _onModelNameChanged() {
+    if (!mounted) return;
+    final name = LlmService.instance.modelName.value;
+    setState(() {
+      _modelFilename = (name != null && name.isNotEmpty) ? name : 'None';
+    });
   }
 
   Future<void> _loadProfile() async {
@@ -57,12 +73,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   void _checkApiKey() async {
     final key = await LlmService.instance.currentApiKey;
+    final persistedName = LlmService.instance.modelName.value;
     final modelPath = await LlmService.instance.currentModelPath;
-    setState(() {
-      _hasApiKey = key.isNotEmpty;
-      _modelFilename = modelPath.split('/').last.split('\\').last;
-      if (_modelFilename.isEmpty) _modelFilename = 'None';
-    });
+
+    if (mounted) {
+      setState(() {
+        _hasApiKey = key.isNotEmpty;
+        if (persistedName != null && persistedName.isNotEmpty) {
+          _modelFilename = persistedName;
+        } else if (modelPath.isNotEmpty) {
+          _modelFilename = modelPath.split('/').last.split('\\').last;
+        } else {
+          _modelFilename = 'None';
+        }
+      });
+    }
   }
 
   void _pickModel() async {
@@ -390,7 +415,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             trailing: const Icon(Icons.chevron_right, color: BopTheme.textSecondary),
             onTap: _showEditProfileDialog,
           ),
-          // const Divider(height: 1),
 
           // ── Standard settings ─────────────────────
           if (false) // Hidden for now
@@ -429,28 +453,158 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     fontSize: 13)),
             onTap: _showApiKeyDialog,
           ),
-          _SettingsTile(
-            label: 'Local AI Model (.gguf)',
-            subtitle: 'Requires GGUF format (e.g. TinyLlama-1.1B)',
-            trailing: _isModelLoading
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: BopTheme.green),
-                  )
-                : Text(_modelFilename,
-                    style: TextStyle(
-                        color: _modelFilename == 'None'
-                            ? BopTheme.textSecondary
-                            : BopTheme.green,
-                        fontSize: 13)),
-            onTap: _pickModel,
+
+          // ── Local AI Model tile ────────────────────────────────────────────
+          ValueListenableBuilder<String?>(
+            valueListenable: LlmService.instance.modelStatus,
+            builder: (context, status, _) {
+              final ai = LlmService.instance;
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // ── Model file picker tile ──────────────────────────────
+                  ValueListenableBuilder<String?>(
+                    valueListenable: ai.modelName,
+                    builder: (context, name, _) {
+                      // Use the live notifier value, fall back to local state
+                      final displayName = (name != null && name.isNotEmpty)
+                          ? name
+                          : _modelFilename;
+                      final hasModel = displayName != 'None' && displayName.isNotEmpty;
+
+                      return _SettingsTile(
+                        label: 'Local AI Model (.gguf)',
+                        // Always show the filename when one is loaded;
+                        // show the status message beneath it as secondary info.
+                        subtitle: hasModel
+                            ? '$displayName${status != null ? '\n$status' : ''}'
+                            : (status ?? 'Requires GGUF format (e.g. TinyLlama-1.1B)'),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (hasModel)
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline,
+                                    color: Colors.redAccent, size: 20),
+                                onPressed: () async {
+                                  final confirm = await showDialog<bool>(
+                                    context: context,
+                                    builder: (ctx) => AlertDialog(
+                                      backgroundColor: const Color(0xFF282828),
+                                      title: const Text('Delete Model File?',
+                                          style: TextStyle(color: Colors.white)),
+                                      content: const Text(
+                                          'This will remove the GGUF file from your storage permanently.',
+                                          style: TextStyle(color: Colors.white70)),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(ctx, false),
+                                          child: const Text('Cancel',
+                                              style: TextStyle(
+                                                  color: BopTheme.textSecondary)),
+                                        ),
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(ctx, true),
+                                          child: const Text('Delete',
+                                              style:
+                                                  TextStyle(color: Colors.redAccent)),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                  if (confirm == true) {
+                                    await ai.clearModel();
+                                    _checkApiKey();
+                                  }
+                                },
+                              ),
+                            if (_isModelLoading)
+                              const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2, color: BopTheme.green),
+                              )
+                            else
+                              const Icon(Icons.chevron_right,
+                                  color: BopTheme.textSecondary),
+                          ],
+                        ),
+                        onTap: _pickModel,
+                      );
+                    },
+                  ),
+
+                  // ── RAM toggle + generation status (only when model is loaded) ──
+                  if (_modelFilename != 'None')
+                    Padding(
+                      padding: const EdgeInsets.only(left: 16, right: 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Active-in-RAM toggle
+                          ListTile(
+                            dense: true,
+                            title: const Text('Active in RAM',
+                                style: TextStyle(color: Colors.white70, fontSize: 13)),
+                            subtitle: Text(
+                              ai.isAiEnabled && ai.isModelLoaded
+                                  ? 'AI is ready to generate'
+                                  : 'Model is on standby — tap to wake',
+                              style: const TextStyle(fontSize: 11),
+                            ),
+                            trailing: Switch(
+                              value: ai.isAiEnabled && ai.isModelLoaded,
+                              activeColor: BopTheme.green,
+                              onChanged: (val) async {
+                                await ai.setAiEnabled(val);
+                                setState(() {});
+                              },
+                            ),
+                          ),
+
+                          // Generation progress indicator
+                          ValueListenableBuilder<int>(
+                            valueListenable: ai.generationProgress,
+                            builder: (context, progress, _) {
+                              // Show only while actively generating
+                              if (progress == 0 || !ai.isModelLoaded) {
+                                return const SizedBox.shrink();
+                              }
+                              return Padding(
+                                padding:
+                                    const EdgeInsets.only(left: 4, bottom: 10),
+                                child: Row(
+                                  children: [
+                                    const SizedBox(
+                                      width: 13,
+                                      height: 13,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 1.5,
+                                          color: BopTheme.green),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Text(
+                                      'Writing… ($progress words so far)',
+                                      style: const TextStyle(
+                                        color: BopTheme.green,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              );
+            },
           ),
-          _SettingsTile(
-            label: 'Lyrics Source',
-            trailing: const Text('lrclib.net',
-                style: TextStyle(color: BopTheme.textSecondary, fontSize: 13)),
-          ),
+
           _SettingsTile(
             label: 'Download Missing Lyrics',
             onTap: () => _showLyricsDownloadDialog(context),
@@ -522,9 +676,10 @@ class _SettingsTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListTile(
       title: Text(label),
-      subtitle: subtitle != null ? Text(subtitle!, style: const TextStyle(color: BopTheme.textMuted, fontSize: 12)) : null,
-      trailing: trailing ??
-          const Icon(Icons.chevron_right, color: BopTheme.textSecondary),
+      subtitle: subtitle != null
+          ? Text(subtitle!, style: const TextStyle(color: BopTheme.textMuted, fontSize: 12))
+          : null,
+      trailing: trailing ?? const Icon(Icons.chevron_right, color: BopTheme.textSecondary),
       onTap: onTap ?? () {},
     );
   }

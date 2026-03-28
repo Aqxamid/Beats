@@ -51,73 +51,73 @@ class RecapTheme {
     }
 
     switch (month) {
-      case 1: // Jan: Ice Blue
+      case 1:
         return RecapTheme(
           gradient: const LinearGradient(colors: [Color(0xFF85D8CE), Color(0xFF085078)], begin: Alignment.topLeft, end: Alignment.bottomRight),
           shapeColor: Colors.white70,
           yearlyType: _AnimType.particles,
         );
-      case 2: // Feb: Rose Pink
+      case 2:
         return RecapTheme(
           gradient: const LinearGradient(colors: [Color(0xFFF06292), Color(0xFF880E4F)], begin: Alignment.topLeft, end: Alignment.bottomRight),
           shapeColor: Colors.pinkAccent,
           yearlyType: _AnimType.liquid,
         );
-      case 3: // Mar: Green
+      case 3:
         return RecapTheme(
           gradient: const LinearGradient(colors: [Color(0xFF66BB6A), Color(0xFF1B5E20)], begin: Alignment.topLeft, end: Alignment.bottomRight),
           shapeColor: Colors.lightGreenAccent,
           yearlyType: _AnimType.waves,
         );
-      case 4: // Apr: Lavender
+      case 4:
         return RecapTheme(
           gradient: const LinearGradient(colors: [Color(0xFF9575CD), Color(0xFF311B92)], begin: Alignment.topLeft, end: Alignment.bottomRight),
           shapeColor: Colors.deepPurpleAccent,
           yearlyType: _AnimType.particles,
         );
-      case 5: // May: Sunflower
+      case 5:
         return RecapTheme(
           gradient: const LinearGradient(colors: [Color(0xFFFFD54F), Color(0xFFF57F17)], begin: Alignment.topLeft, end: Alignment.bottomRight),
           shapeColor: Colors.yellowAccent,
           yearlyType: _AnimType.blobs,
         );
-      case 6: // Jun: Ocean
+      case 6:
         return RecapTheme(
           gradient: const LinearGradient(colors: [Color(0xFF4DB6AC), Color(0xFF004D40)], begin: Alignment.topLeft, end: Alignment.bottomRight),
           shapeColor: Colors.cyanAccent,
           yearlyType: _AnimType.waves,
         );
-      case 7: // Jul: Summer
+      case 7:
         return RecapTheme(
           gradient: const LinearGradient(colors: [Color(0xFFFF8A65), Color(0xFFBF360C)], begin: Alignment.topLeft, end: Alignment.bottomRight),
           shapeColor: Colors.deepOrangeAccent,
           yearlyType: _AnimType.liquid,
         );
-      case 8: // Aug: Sunset
+      case 8:
         return RecapTheme(
           gradient: const LinearGradient(colors: [Color(0xFFFFB74D), Color(0xFFE65100)], begin: Alignment.topLeft, end: Alignment.bottomRight),
           shapeColor: Colors.orangeAccent,
           yearlyType: _AnimType.aurora,
         );
-      case 9: // Sep: Autumn
+      case 9:
         return RecapTheme(
           gradient: const LinearGradient(colors: [Color(0xFFA1887F), Color(0xFF3E2723)], begin: Alignment.topLeft, end: Alignment.bottomRight),
           shapeColor: Colors.brown,
           yearlyType: _AnimType.particles,
         );
-      case 10: // Oct: Spooky
+      case 10:
         return RecapTheme(
           gradient: const LinearGradient(colors: [Color(0xFFBA68C8), Color(0xFF4A148C)], begin: Alignment.topLeft, end: Alignment.bottomRight),
           shapeColor: Colors.orange,
           yearlyType: _AnimType.nebula,
         );
-      case 11: // Nov: Cozy
+      case 11:
         return RecapTheme(
           gradient: const LinearGradient(colors: [Color(0xFF90A4AE), Color(0xFF263238)], begin: Alignment.topLeft, end: Alignment.bottomRight),
           shapeColor: Colors.blueGrey,
           yearlyType: _AnimType.aurora,
         );
-      case 12: // Dec: Holiday
+      case 12:
       default:
         return RecapTheme(
           gradient: const LinearGradient(colors: [BopTheme.green, Color(0xFF1B5E20)], begin: Alignment.topLeft, end: Alignment.bottomRight),
@@ -225,6 +225,7 @@ class _WrappedSlideshowScreenState extends ConsumerState<WrappedSlideshowScreen>
       }
     } catch (_) {}
   }
+
   List<Widget> _buildSlides(bool isBold) {
     final hasMinutes = r.totalMinutes > 0;
     final hasSongs = r.topSong.isNotEmpty || (r.slidesJsonStr.isNotEmpty && r.slidesJsonStr != '[]');
@@ -241,7 +242,8 @@ class _WrappedSlideshowScreenState extends ConsumerState<WrappedSlideshowScreen>
           _Top5Card(report: r, isBold: isBold),
         ],
         _VibeMapCard(report: r, isBold: isBold),
-        if (hasPersonality) _PersonalityCard(report: r, isBold: isBold),
+        _TimeInsightCard(report: r, isBold: isBold),
+        if (hasPersonality) _PersonalityInsightCard(report: r, isBold: isBold),
         if (hasMinutes && r.isAiGenerated) _LLMRecapCard(report: r, isBold: isBold),
       ],
       _ShareCard(report: r, isBold: isBold),
@@ -276,7 +278,6 @@ class _WrappedSlideshowScreenState extends ConsumerState<WrappedSlideshowScreen>
                   onPageChanged: _handlePageChange,
                   children: slides,
                 ),
-                // ── Progress dots ─────────────────────────
                 Positioned(
                   top: MediaQuery.of(context).padding.top + 12,
                   left: 16,
@@ -306,9 +307,8 @@ class _WrappedSlideshowScreenState extends ConsumerState<WrappedSlideshowScreen>
                     ),
                   ),
                 ),
-                // ── Close button ──────────────────────────
                 Positioned(
-                  top: MediaQuery.of(context).padding.top + 24, 
+                  top: MediaQuery.of(context).padding.top + 24,
                   right: 8,
                   child: IconButton(
                     icon: const Icon(Icons.close, color: Colors.white70),
@@ -340,7 +340,6 @@ class _Slide extends StatelessWidget {
       decoration: BoxDecoration(gradient: gradient),
       child: Stack(
         children: [
-          // ── Default Abstract shapes (Restore from previous) ─────────────
           Positioned(
             right: -50,
             top: -50,
@@ -359,21 +358,18 @@ class _Slide extends StatelessWidget {
               decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black.withOpacity(0.04)),
             ),
           ),
-          
-          // ── Bold Geometric Painter (Spotify-themed) ────────────────────
           if (isBold)
             Positioned.fill(
               child: RepaintBoundary(
                 child: CustomPaint(
                   painter: _GeometricPainter(
-                    Colors.white.withOpacity(0.08), 
-                    seed: gradient.hashCode, 
-                    isBold: true
+                    Colors.white.withOpacity(0.08),
+                    seed: gradient.hashCode,
+                    isBold: true,
                   ),
                 ),
               ),
             ),
-          
           SafeArea(
             child: Center(
               child: Container(
@@ -388,23 +384,20 @@ class _Slide extends StatelessWidget {
                   borderRadius: BorderRadius.circular(28),
                   child: Stack(
                     children: [
-                       // ── Default Abstract shapes (Internal) ─────────────
-                       Positioned(
-                         right: -15,
-                         top: -15,
-                         child: Container(
-                           width: 60,
-                           height: 60,
-                           decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withOpacity(0.04)),
-                         ),
-                       ),
-                       
-                       // Subtle internal geometric painter 
-                       Positioned.fill(child: CustomPaint(painter: _GeometricPainter(Colors.white.withOpacity(0.03), seed: gradient.hashCode + 1, isBold: false))),
-                       Padding(
-                         padding: const EdgeInsets.all(28),
-                         child: child,
-                       ),
+                      Positioned(
+                        right: -15,
+                        top: -15,
+                        child: Container(
+                          width: 60,
+                          height: 60,
+                          decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withOpacity(0.04)),
+                        ),
+                      ),
+                      Positioned.fill(child: CustomPaint(painter: _GeometricPainter(Colors.white.withOpacity(0.03), seed: gradient.hashCode + 1, isBold: false))),
+                      Padding(
+                        padding: const EdgeInsets.all(28),
+                        child: child,
+                      ),
                     ],
                   ),
                 ),
@@ -448,7 +441,6 @@ class _AbstractAnimationState extends State<_AbstractAnimation> with TickerProvi
 
   @override
   Widget build(BuildContext context) {
-    // Restore default animations but guard the "Geometric" parts
     return Stack(
       children: [
         _buildBackground(),
@@ -579,7 +571,7 @@ class _WavePainter extends CustomPainter {
     final path = Path();
     path.moveTo(0, size.height * 0.7);
     for (double i = 0; i <= size.width; i++) {
-        path.lineTo(i, size.height * 0.7 + sin((i / size.width * 2 * pi) + (animation * 2 * pi)) * 30);
+      path.lineTo(i, size.height * 0.7 + sin((i / size.width * 2 * pi) + (animation * 2 * pi)) * 30);
     }
     path.lineTo(size.width, size.height);
     path.lineTo(0, size.height);
@@ -589,7 +581,7 @@ class _WavePainter extends CustomPainter {
     final path2 = Path();
     path2.moveTo(0, size.height * 0.8);
     for (double i = 0; i <= size.width; i++) {
-        path2.lineTo(i, size.height * 0.8 + cos((i / size.width * 2 * pi) + (animation * 4 * pi)) * 20);
+      path2.lineTo(i, size.height * 0.8 + cos((i / size.width * 2 * pi) + (animation * 4 * pi)) * 20);
     }
     path2.lineTo(size.width, size.height);
     path2.lineTo(0, size.height);
@@ -627,7 +619,7 @@ class _StarBlobPainter extends CustomPainter {
       else path.quadraticBezierTo(
         center.dx + cos(angle - pi/points/2) * (isInner ? radius * 0.9 : radius * 0.8),
         center.dy + sin(angle - pi/points/2) * (isInner ? radius * 0.9 : radius * 0.8),
-        x, y
+        x, y,
       );
     }
     path.close();
@@ -648,7 +640,7 @@ class _LiquidPainter extends CustomPainter {
     final paint = Paint()..color = color.withOpacity(0.1);
     final center = Offset(size.width / 2, size.height / 2);
     final radius = size.width * 0.4;
-    
+
     final path = Path();
     for (double i = 0; i <= 2 * pi; i += 0.1) {
       final r = radius + sin(i * 5 + animation * 2 * pi) * 20;
@@ -673,13 +665,14 @@ class _NebulaPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..maskFilter = const MaskFilter.blur(BlurStyle.normal, 40);
     for (int i = 0; i < 3; i++) {
-        final r = size.width * (0.6 + i * 0.1);
-        final x = size.width * 0.5 + sin(animation * 2 * pi + i) * 50;
-        final y = size.height * 0.5 + cos(animation * 2 * pi + i) * 50;
-        paint.color = color.withOpacity(0.15 - i * 0.03);
-        canvas.drawCircle(Offset(x, y), r, paint);
+      final r = size.width * (0.6 + i * 0.1);
+      final x = size.width * 0.5 + sin(animation * 2 * pi + i) * 50;
+      final y = size.height * 0.5 + cos(animation * 2 * pi + i) * 50;
+      paint.color = color.withOpacity(0.15 - i * 0.03);
+      canvas.drawCircle(Offset(x, y), r, paint);
     }
   }
+
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
@@ -694,20 +687,21 @@ class _AuroraPainter extends CustomPainter {
     final paint = Paint()..style = PaintingStyle.fill..maskFilter = const MaskFilter.blur(BlurStyle.normal, 60);
     final path = Path();
     for (int i = 0; i < 2; i++) {
-        path.reset();
-        final yBase = size.height * (0.3 + i * 0.2);
-        path.moveTo(0, yBase);
-        for (double x = 0; x <= size.width; x += 10) {
-            final y = yBase + sin(x / 50 + animation * 4 * pi + i) * 40;
-            path.lineTo(x, y);
-        }
-        path.lineTo(size.width, size.height);
-        path.lineTo(0, size.height);
-        path.close();
-        paint.color = color.withOpacity(0.1 + i * 0.05);
-        canvas.drawPath(path, paint);
+      path.reset();
+      final yBase = size.height * (0.3 + i * 0.2);
+      path.moveTo(0, yBase);
+      for (double x = 0; x <= size.width; x += 10) {
+        final y = yBase + sin(x / 50 + animation * 4 * pi + i) * 40;
+        path.lineTo(x, y);
+      }
+      path.lineTo(size.width, size.height);
+      path.lineTo(0, size.height);
+      path.close();
+      paint.color = color.withOpacity(0.1 + i * 0.05);
+      canvas.drawPath(path, paint);
     }
   }
+
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
@@ -720,40 +714,34 @@ class _GeometricPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = isBold ? color.withOpacity(0.15) : color.withOpacity(0.4)
-      ..style = PaintingStyle.fill;
-
     final random = Random(seed);
     final count = isBold ? 15 : 12;
-    
+
     for (int i = 0; i < count; i++) {
       final x = random.nextDouble() * size.width;
       final y = random.nextDouble() * size.height;
       final sizeVal = (isBold ? 80.0 : 60.0) + random.nextDouble() * 140.0;
-      
+
       canvas.save();
       canvas.translate(x, y);
       canvas.rotate(random.nextDouble() * 2 * pi);
-      
+
       final shapePaint = Paint()
         ..color = color.withOpacity(isBold ? (0.05 + random.nextDouble() * 0.08) : 0.05)
         ..style = PaintingStyle.fill;
 
       final type = random.nextInt(6);
       if (type == 0) {
-        // Star shape (The Specialist)
         final p = Path();
         for (int j = 0; j < 4; j++) {
-            final angle = j * pi / 2;
-            final r1 = sizeVal / 2;
-            if (j == 0) p.moveTo(r1 * cos(angle), r1 * sin(angle));
-            else p.lineTo(r1 * cos(angle), r1 * sin(angle));
-            p.quadraticBezierTo(0, 0, r1 * cos(angle + pi/2), r1 * sin(angle + pi/2));
+          final angle = j * pi / 2;
+          final r1 = sizeVal / 2;
+          if (j == 0) p.moveTo(r1 * cos(angle), r1 * sin(angle));
+          else p.lineTo(r1 * cos(angle), r1 * sin(angle));
+          p.quadraticBezierTo(0, 0, r1 * cos(angle + pi/2), r1 * sin(angle + pi/2));
         }
         canvas.drawPath(p, shapePaint);
       } else if (type == 1) {
-        // Flower shape (The Replayer)
         for (int j = 0; j < 4; j++) {
           canvas.save();
           canvas.rotate(j * pi / 2);
@@ -761,26 +749,24 @@ class _GeometricPainter extends CustomPainter {
           canvas.restore();
         }
       } else if (type == 2) {
-        // Spiky Burst
         final p = Path();
-        const points = 12;
-        for (int j = 0; j < points * 2; j++) {
+        const pts = 12;
+        for (int j = 0; j < pts * 2; j++) {
           final r = j.isEven ? sizeVal / 2 : sizeVal / 4;
-          final angle = j * pi / points;
+          final angle = j * pi / pts;
           if (j == 0) p.moveTo(r * cos(angle), r * sin(angle));
           else p.lineTo(r * cos(angle), r * sin(angle));
         }
         p.close();
         canvas.drawPath(p, shapePaint);
       } else if (type == 3) {
-        // Soft Rhombus
         final s = sizeVal / 2;
         final p = Path()
-            ..moveTo(0, -s)
-            ..lineTo(s, 0)
-            ..lineTo(0, s)
-            ..lineTo(-s, 0)
-            ..close();
+          ..moveTo(0, -s)
+          ..lineTo(s, 0)
+          ..lineTo(0, s)
+          ..lineTo(-s, 0)
+          ..close();
         canvas.drawPath(p, shapePaint);
       } else if (type == 4) {
         canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(-sizeVal/2, -sizeVal/2, sizeVal, sizeVal), Radius.circular(sizeVal/4)), shapePaint);
@@ -813,16 +799,17 @@ class _BoldSlide extends StatelessWidget {
       child: Stack(
         children: [
           Positioned.fill(
-              child: CustomPaint(
-                  painter: _GeometricPainter(accentColor, isBold: true, seed: backgroundColor.hashCode))),
-          
+            child: CustomPaint(
+              painter: _GeometricPainter(accentColor, isBold: true, seed: backgroundColor.hashCode),
+            ),
+          ),
           Center(
             child: Container(
               width: MediaQuery.of(context).size.width * 0.88,
               height: MediaQuery.of(context).size.height * 0.72,
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(16), // Sharper for Bold
+                borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 40, offset: const Offset(0, 20))
                 ],
@@ -846,6 +833,8 @@ class _BoldSlide extends StatelessWidget {
     );
   }
 }
+
+// ── Card 1: Intro ─────────────────────────────────────────────
 class _IntroCard extends StatelessWidget {
   final WrappedReport report;
   final bool isBold;
@@ -872,8 +861,7 @@ class _IntroCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text('${report.generatedAt.year} $monthName'.trim(),
-                  style: const TextStyle(
-                      color: Colors.white70, fontSize: 16, fontWeight: FontWeight.w500)),
+                  style: const TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.w500)),
               const SizedBox(height: 12),
               Text(report.cadence == 'yearly' ? 'Your\nYear\nin Music' : 'Your\nMonth\nin Music',
                   textAlign: TextAlign.center,
@@ -904,7 +892,7 @@ class _MinutesCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = RecapTheme.get(report.generatedAt.month, report.cadence == 'yearly');
     final hrs = report.totalMinutes ~/ 60;
-    
+
     return _Slide(
       gradient: theme.gradient,
       isBold: isBold,
@@ -926,12 +914,20 @@ class _MinutesCard extends StatelessWidget {
                       fontWeight: FontWeight.w900,
                       letterSpacing: -3)),
               const SizedBox(height: 24),
-              Text(
-                "That's $hrs hours.\nWe're not judging.\nOkay we're a little judging.",
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                    color: Colors.white, fontSize: 18, height: 1.4, fontWeight: FontWeight.w500),
-              ),
+              Builder(builder: (context) {
+                String insight = "That's $hrs hours.\nWe're not judging.\nOkay we're a little judging.";
+                try {
+                  final data = jsonDecode(report.slidesJsonStr);
+                  if (data['insights'] != null && data['insights']['minutesInsight'] != null) {
+                    insight = data['insights']['minutesInsight'].replaceAll('\\n', '\n');
+                  }
+                } catch (_) {}
+                return Text(
+                  insight,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white, fontSize: 18, height: 1.4, fontWeight: FontWeight.w500),
+                );
+              }),
             ],
           ),
         ),
@@ -996,7 +992,7 @@ class _TopArtistCardState extends State<_TopArtistCard> {
                   children: [
                     CustomPaint(
                       size: const Size(300, 300),
-                      painter: _StarBlobPainter(theme.shapeColor, 0), // Static or slow anim
+                      painter: _StarBlobPainter(theme.shapeColor, 0),
                     ),
                     Container(
                       width: 140,
@@ -1029,11 +1025,20 @@ class _TopArtistCardState extends State<_TopArtistCard> {
                 Text('${widget.report.topArtistPlays} plays',
                     style: const TextStyle(color: BopTheme.green, fontWeight: FontWeight.w800, fontSize: 18)),
                 const SizedBox(height: 24),
-                const Text(
-                  'They were there for you.\nSuspiciously often.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.white, fontSize: 16, height: 1.4, fontWeight: FontWeight.w500),
-                ),
+                Builder(builder: (context) {
+                  String insight = "They were there for you.\nSuspiciously often.";
+                  try {
+                    final data = jsonDecode(widget.report.slidesJsonStr);
+                    if (data['insights'] != null && data['insights']['artistInsight'] != null) {
+                      insight = data['insights']['artistInsight'].replaceAll('\\n', '\n');
+                    }
+                  } catch (_) {}
+                  return Text(
+                    insight,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.white, fontSize: 16, height: 1.4, fontWeight: FontWeight.w500),
+                  );
+                }),
               ],
             ),
           ),
@@ -1057,16 +1062,15 @@ class _TopSongCard extends StatelessWidget {
       isBold: isBold,
       child: _AbstractAnimation(
         shapeColor: theme.shapeColor,
-        type: _AnimType.liquid, // Use liquid or custom for top part
+        type: _AnimType.liquid,
         isBold: isBold,
         child: Stack(
           children: [
-            // Wave background at bottom
             Positioned.fill(
               child: AnimatedBuilder(
-                animation: const AlwaysStoppedAnimation(0), // Placeholder for animation if needed
+                animation: const AlwaysStoppedAnimation(0),
                 builder: (context, _) => CustomPaint(
-                  painter: _WavePainter(0.2, theme.shapeColor), // Static hills at bottom
+                  painter: _WavePainter(0.2, theme.shapeColor),
                   size: Size.infinite,
                 ),
               ),
@@ -1085,18 +1089,27 @@ class _TopSongCard extends StatelessWidget {
                     child: Text(report.topSong,
                         textAlign: TextAlign.center,
                         style: const TextStyle(
-                            color: Colors.white, 
-                            fontSize: 42, 
-                            fontWeight: FontWeight.w900, 
+                            color: Colors.white,
+                            fontSize: 42,
+                            fontWeight: FontWeight.w900,
                             height: 1.0,
                             letterSpacing: -1.5)),
                   ),
                   const SizedBox(height: 32),
-                  const Text(
-                    'Turn it up.\nThis one is yours.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.white, fontSize: 18, height: 1.4, fontWeight: FontWeight.w500),
-                  ),
+                  Builder(builder: (context) {
+                    String insight = "Turn it up.\nThis one is yours.";
+                    try {
+                      final data = jsonDecode(report.slidesJsonStr);
+                      if (data['insights'] != null && data['insights']['songInsight'] != null) {
+                        insight = data['insights']['songInsight'].replaceAll('\\n', '\n');
+                      }
+                    } catch (_) {}
+                    return Text(
+                      insight,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.white, fontSize: 18, height: 1.4, fontWeight: FontWeight.w500),
+                    );
+                  }),
                 ],
               ),
             ),
@@ -1149,21 +1162,21 @@ class _Top5List extends StatelessWidget {
               style: TextStyle(color: Colors.white, fontSize: 42, fontWeight: FontWeight.w900, letterSpacing: -1.5)),
           const SizedBox(height: 32),
           if (parsedTop5.isEmpty)
-             const Center(child: Text("Not enough data to calculate top 5.", style: TextStyle(color: Colors.white70))),
+            const Center(child: Text("Not enough data to calculate top 5.", style: TextStyle(color: Colors.white70))),
           ...parsedTop5.take(5).toList().asMap().entries.map((entry) {
             final idx = entry.key + 1;
             final item = entry.value;
             final songId = item['id'] as int?;
-            
+
             return Padding(
               padding: const EdgeInsets.only(bottom: 16),
               child: Row(
                 children: [
-                   Container(
+                  Container(
                     width: 24,
                     alignment: Alignment.centerLeft,
-                    child: Text('$idx', style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 20, fontWeight: FontWeight.w900))
-                   ),
+                    child: Text('$idx', style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 20, fontWeight: FontWeight.w900)),
+                  ),
                   const SizedBox(width: 12),
                   FutureBuilder<Song?>(
                     future: songId != null ? DbService.instance.isar.songs.get(songId) : Future.value(null),
@@ -1181,7 +1194,7 @@ class _Top5List extends StatelessWidget {
                           ? ClipRRect(
                               borderRadius: BorderRadius.circular(8),
                               child: Image.memory(
-                                Uint8List.fromList(songArt), 
+                                Uint8List.fromList(songArt),
                                 fit: BoxFit.cover,
                                 gaplessPlayback: true,
                                 cacheWidth: 120,
@@ -1190,19 +1203,19 @@ class _Top5List extends StatelessWidget {
                             )
                           : const Icon(Icons.music_note, color: Colors.white24, size: 24),
                       );
-                    }
+                    },
                   ),
                   const SizedBox(width: 16),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(item['title'] ?? 'Unknown', 
-                          style: TextStyle(color: isBold ? Colors.black : Colors.white, fontSize: 17, fontWeight: FontWeight.w800), 
+                        Text(item['title'] ?? 'Unknown',
+                          style: TextStyle(color: isBold ? Colors.black : Colors.white, fontSize: 17, fontWeight: FontWeight.w800),
                           maxLines: 1, overflow: TextOverflow.ellipsis),
                         const SizedBox(height: 2),
-                        Text('${item['artist'] ?? 'Unknown'}', 
-                          style: TextStyle(color: isBold ? Colors.black.withOpacity(0.7) : Colors.white54, fontSize: 13, fontWeight: FontWeight.w500), 
+                        Text('${item['artist'] ?? 'Unknown'}',
+                          style: TextStyle(color: isBold ? Colors.black.withOpacity(0.7) : Colors.white54, fontSize: 13, fontWeight: FontWeight.w500),
                           maxLines: 1, overflow: TextOverflow.ellipsis),
                       ],
                     ),
@@ -1211,9 +1224,9 @@ class _Top5List extends StatelessWidget {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Text('${(item['minutes'] ?? 0).toInt()} mins', 
+                      Text('${(item['minutes'] ?? 0).toInt()} mins',
                         style: const TextStyle(color: BopTheme.green, fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: -0.5)),
-                      Text('${item['playCount'] ?? 0} plays', 
+                      Text('${item['playCount'] ?? 0} plays',
                         style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 11)),
                     ],
                   ),
@@ -1242,11 +1255,11 @@ class _VibeMapCard extends StatelessWidget {
 
     final sortedGenres = genreMap.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
-    
+
     if (sortedGenres.isEmpty) return const SizedBox.shrink();
 
     final theme = RecapTheme.get(report.generatedAt.month, report.cadence == 'yearly');
-    
+
     Widget content;
     List<dynamic> heatmapData = [];
     try {
@@ -1257,13 +1270,13 @@ class _VibeMapCard extends StatelessWidget {
     } catch (_) {}
 
     if (heatmapData.isEmpty) {
-        if (sortedGenres.length == 1) {
-          content = _soloGenre(sortedGenres.first, isBold);
-        } else {
-          content = _multiGenre(sortedGenres.take(5).toList(), isBold);
-        }
+      if (sortedGenres.length == 1) {
+        content = _soloGenre(sortedGenres.first, isBold);
+      } else {
+        content = _multiGenre(sortedGenres.take(5).toList(), isBold);
+      }
     } else {
-        content = _MoodHeatmap(heatmapData: heatmapData, sortedGenres: sortedGenres, isBold: isBold);
+      content = _MoodHeatmap(heatmapData: heatmapData, sortedGenres: sortedGenres, isBold: isBold);
     }
 
     return _Slide(
@@ -1306,11 +1319,11 @@ class _VibeMapCard extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(entry.key, 
+            Text(entry.key,
               style: const TextStyle(color: Colors.white, fontSize: 48, fontWeight: FontWeight.w900)),
             const SizedBox(height: 8),
-            Text('${entry.value} plays this month', 
-              style: TextStyle(color: isBold ? Colors.white70 : Colors.white70)),
+            Text('${entry.value} plays this month',
+              style: const TextStyle(color: Colors.white70)),
           ],
         ),
       ),
@@ -1384,7 +1397,142 @@ class _VibeMapCard extends StatelessWidget {
   }
 }
 
-// ── Card 7: Personality ───────────────────────────────────────
+// ── Card 7: Time Insight ──────────────────────────────────────
+class _TimeInsightCard extends StatelessWidget {
+  final WrappedReport report;
+  final bool isBold;
+  const _TimeInsightCard({required this.report, required this.isBold});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = RecapTheme.get(report.generatedAt.month, report.cadence == 'yearly');
+
+    String insight = "${report.peakHourLabel} - The perfect hour.";
+    try {
+      final data = jsonDecode(report.slidesJsonStr);
+      if (data['insights'] != null && data['insights']['timeInsight'] != null) {
+        insight = data['insights']['timeInsight'];
+      }
+    } catch (_) {}
+
+    return _Slide(
+      isBold: isBold,
+      gradient: theme.gradient,
+      child: _AbstractAnimation(
+        type: theme.yearlyType,
+        shapeColor: theme.shapeColor,
+        isBold: isBold,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.access_time_filled, color: theme.shapeColor, size: 64),
+            const SizedBox(height: 32),
+            const Text('Peak Listening Time', style: TextStyle(color: Colors.white70, fontSize: 18)),
+            const SizedBox(height: 8),
+            Text(report.peakHourLabel, style: const TextStyle(color: Colors.white, fontSize: 42, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 64),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Text(
+                insight,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white, fontSize: 20, fontStyle: FontStyle.italic, fontWeight: FontWeight.w300),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Card 8: Personality Insight ───────────────────────────────
+// FIX: Added Center() wrapper + crossAxisAlignment.center + Padding guards
+// to properly center AI-generated personality titles of any length.
+class _PersonalityInsightCard extends StatelessWidget {
+  final WrappedReport report;
+  final bool isBold;
+  const _PersonalityInsightCard({required this.report, required this.isBold});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = RecapTheme.get(report.generatedAt.month, report.cadence == 'yearly');
+
+    String title = report.personalityType;
+    try {
+      final data = jsonDecode(report.slidesJsonStr);
+      if (data['insights'] != null && data['insights']['personalityTitle'] != null) {
+        title = data['insights']['personalityTitle'];
+      }
+    } catch (_) {}
+
+    return _Slide(
+      isBold: isBold,
+      gradient: theme.gradient,
+      child: _AbstractAnimation(
+        type: theme.yearlyType,
+        shapeColor: theme.shapeColor,
+        isBold: isBold,
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              const Text(
+                'Your Listening Personality',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white70, fontSize: 16),
+              ),
+              const SizedBox(height: 48),
+              Container(
+                width: 120,
+                height: 120,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: theme.shapeColor.withOpacity(0.2),
+                  border: Border.all(color: theme.shapeColor.withOpacity(0.5), width: 2),
+                ),
+                child: Icon(_personalityIcon(report.personalityEmoji), color: Colors.white, size: 60),
+              ),
+              const SizedBox(height: 32),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Text(
+                  'Based on your ${_getTopGenre(report)} habits.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white54, fontSize: 14),
+                ),
+              ),
+              const SizedBox(height: 48),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 24),
+                child: Text(
+                  'Music is not optional.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white, fontSize: 18, fontStyle: FontStyle.italic),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _PersonalityCard extends StatelessWidget {
   final WrappedReport report;
   final bool isBold;
@@ -1434,7 +1582,7 @@ class _PersonalityCard extends StatelessWidget {
   }
 }
 
-// ── Card 8: LLM Recap ─────────────────────────────────────────
+// ── Card 9: LLM Recap ─────────────────────────────────────────
 class _LLMRecapCard extends StatelessWidget {
   final WrappedReport report;
   final bool isBold;
@@ -1482,20 +1630,31 @@ class _LLMRecapCard extends StatelessWidget {
                           Text('BOP AI', style: TextStyle(color: BopTheme.green, fontSize: 10, fontWeight: FontWeight.bold)),
                         ],
                       ),
+                    )
+                  else if (!hasRecap)
+                    const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: BopTheme.green),
                     ),
                 ],
               ),
               const SizedBox(height: 20),
-              Text(
-                hasRecap
-                    ? '"${report.llmRecap}"'
-                    : '"Generating your recap on-device…"',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  height: 1.7,
-                  fontStyle: FontStyle.italic,
-                ),
+              ValueListenableBuilder<String?>(
+                valueListenable: LlmService.instance.modelStatus,
+                builder: (context, status, _) {
+                  return Text(
+                    hasRecap
+                        ? '"${report.llmRecap}"'
+                        : (status ?? '"Generating your recap on-device…"'),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      height: 1.7,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  );
+                },
               ),
               const SizedBox(height: 24),
               Text(
@@ -1510,7 +1669,7 @@ class _LLMRecapCard extends StatelessWidget {
   }
 }
 
-// ── Card 9: Share ─────────────────────────────────────────────
+// ── Card 10: Share ────────────────────────────────────────────
 class _ShareCard extends StatefulWidget {
   final WrappedReport report;
   final bool isBold;
@@ -1573,7 +1732,7 @@ class _ShareCardState extends State<_ShareCard> {
                       image: DecorationImage(image: FileImage(File(_avatarPath!)), fit: BoxFit.cover),
                     ),
                   )
-                else 
+                else
                   const CircleAvatar(
                     radius: 70,
                     backgroundColor: Colors.white12,
@@ -1628,13 +1787,13 @@ class _ShareCardState extends State<_ShareCard> {
     try {
       final theme = RecapTheme.get(widget.report.generatedAt.month, widget.report.cadence == 'yearly');
       final summaryCard = _RecapSummaryCard(
-        report: widget.report, 
-        theme: theme, 
-        username: _username, 
+        report: widget.report,
+        theme: theme,
+        username: _username,
         avatarPath: _avatarPath,
         isBold: widget.isBold,
       );
-      
+
       final image = await ScreenshotController().captureFromWidget(
         Material(child: summaryCard),
         delay: const Duration(milliseconds: 100),
@@ -1685,8 +1844,8 @@ class _RecapSummaryCard extends StatelessWidget {
     return Material(
       color: Colors.black,
       child: Container(
-        width: 360, 
-        height: 640, // 9:16 ratio
+        width: 360,
+        height: 640,
         decoration: BoxDecoration(gradient: theme.gradient),
         child: Stack(
           children: [
@@ -1714,7 +1873,7 @@ class _RecapSummaryCard extends StatelessWidget {
                       children: [
                         if (avatarPath != null && File(avatarPath!).existsSync())
                           CircleAvatar(radius: 20, backgroundImage: FileImage(File(avatarPath!)))
-                        else 
+                        else
                           const CircleAvatar(radius: 20, backgroundColor: Colors.white12, child: Icon(Icons.person, color: Colors.white24, size: 20)),
                         const SizedBox(width: 10),
                         Expanded(
@@ -1758,7 +1917,7 @@ class _RecapSummaryCard extends StatelessWidget {
                                       )
                                     : const Icon(Icons.music_note, color: Colors.white24, size: 14),
                                 );
-                              }
+                              },
                             ),
                             Expanded(
                               child: Column(
@@ -1770,7 +1929,7 @@ class _RecapSummaryCard extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(width: 4),
-                            Text('${(s['minutes'] ?? 0).toInt()} ${(s['minutes'] ?? 0).toInt() == 1 ? 'min' : 'mins'}', 
+                            Text('${(s['minutes'] ?? 0).toInt()} ${(s['minutes'] ?? 0).toInt() == 1 ? 'min' : 'mins'}',
                                 style: const TextStyle(color: Colors.white38, fontSize: 8, fontWeight: FontWeight.w700)),
                           ],
                         ),
@@ -1828,6 +1987,7 @@ class _RecapSummaryCard extends StatelessWidget {
   }
 }
 
+// ── Mood Heatmap ──────────────────────────────────────────────
 class _MoodHeatmap extends StatefulWidget {
   final List<dynamic> heatmapData;
   final List<MapEntry<String, int>> sortedGenres;
@@ -1878,10 +2038,10 @@ class _MoodHeatmapState extends State<_MoodHeatmap> with SingleTickerProviderSta
               return CustomPaint(
                 size: const Size(double.infinity, double.infinity),
                 painter: _MoodRadialPainter(
-                  hourlyIntensity, 
-                  maxVal, 
+                  hourlyIntensity,
+                  maxVal,
                   _controller.value * 2 * pi,
-                  isBold: widget.isBold
+                  isBold: widget.isBold,
                 ),
               );
             },
@@ -1931,38 +2091,34 @@ class _MoodRadialPainter extends CustomPainter {
     canvas.rotate(rotation);
 
     for (int i = 0; i < 24; i++) {
-        final val = intensities[i];
-        final strength = max > 0 ? val / max : 0.0;
-        final hRadius = radius + (strength * 40);
-        
-        // Define color based on hour (time of day)
-        Color color;
-        if (i >= 22 || i <= 4) {
-          color = Colors.deepPurpleAccent.withOpacity(0.5 + 0.5 * strength);
-        } else if (i >= 5 && i <= 10) {
-          color = Colors.orangeAccent.withOpacity(0.5 + 0.5 * strength);
-        } else if (i >= 11 && i <= 16) {
-          color = Colors.cyanAccent.withOpacity(0.5 + 0.5 * strength);
-        } else {
-          color = Colors.pinkAccent.withOpacity(0.5 + 0.5 * strength);
-        }
+      final val = intensities[i];
+      final strength = max > 0 ? val / max : 0.0;
+      final hRadius = radius + (strength * 40);
 
-        if (isBold) {
-          color = color.withOpacity(0.9);
-        }
+      Color color;
+      if (i >= 22 || i <= 4) {
+        color = Colors.deepPurpleAccent.withOpacity(0.5 + 0.5 * strength);
+      } else if (i >= 5 && i <= 10) {
+        color = Colors.orangeAccent.withOpacity(0.5 + 0.5 * strength);
+      } else if (i >= 11 && i <= 16) {
+        color = Colors.cyanAccent.withOpacity(0.5 + 0.5 * strength);
+      } else {
+        color = Colors.pinkAccent.withOpacity(0.5 + 0.5 * strength);
+      }
 
-        paint.color = color;
-        
-        canvas.drawArc(
-          Rect.fromCircle(center: Offset.zero, radius: hRadius),
-          i * segmentAngle,
-          segmentAngle * 0.9,
-          true,
-          paint
-        );
+      if (isBold) color = color.withOpacity(0.9);
+
+      paint.color = color;
+
+      canvas.drawArc(
+        Rect.fromCircle(center: Offset.zero, radius: hRadius),
+        i * segmentAngle,
+        segmentAngle * 0.9,
+        true,
+        paint,
+      );
     }
-    
-    // Smooth inner center
+
     paint.shader = const RadialGradient(
       colors: [Colors.black54, Colors.transparent],
     ).createShader(Rect.fromCircle(center: Offset.zero, radius: radius * 0.8));
@@ -1971,14 +2127,20 @@ class _MoodRadialPainter extends CustomPainter {
     canvas.restore();
   }
 
-  void _drawText(Canvas canvas, Offset pos, String text, TextStyle style) {
-    final tp = TextPainter(
-      text: TextSpan(text: text, style: style),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    tp.paint(canvas, pos - Offset(tp.width / 2, tp.height / 2));
-  }
-
   @override
   bool shouldRepaint(_MoodRadialPainter old) => old.rotation != rotation;
+}
+
+String _getTopGenre(WrappedReport report) {
+  try {
+    final Map<String, dynamic> genres = jsonDecode(report.genreJsonStr);
+    if (genres.isEmpty) return 'eclectic';
+    var top = genres.entries.first;
+    for (var e in genres.entries) {
+      if ((e.value as num) > (top.value as num)) top = e;
+    }
+    return top.key;
+  } catch (_) {
+    return 'eclectic';
+  }
 }
